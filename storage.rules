@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// PINDOM Cloud Storage 보안 규칙
+//
+// 현재 상태: 전면 차단. 실제 규칙은 Phase 3에서 작성한다.
+// 사양: tickets/{uid}/{filename} 과 posts/{uid}/{filename} 에 대해
+// 소유자 일치 · contentType 이미지 · 용량 상한을 강제한다.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
