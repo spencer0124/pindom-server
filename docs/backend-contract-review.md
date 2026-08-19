@@ -555,3 +555,73 @@ places.geohash 삭제
 
 **함수는 3개 그대로.** 추가 함수 없이 전부 해결된다.
 
+
+---
+
+# 합의 제안 — 규칙 작성 전 확정이 필요한 2건
+
+보안 규칙(Phase 3)은 필드 이름과 쓰기 주체를 코드에 직접 박는다. 위 항목 대부분은 규칙과
+무관하지만, **D와 E 두 건은 규칙의 모양 자체를 바꾼다.** 먼저 쓰면 회신 후 절반을 버리게
+되므로 아래 안으로 확정하고 진행하려 한다.
+
+**이의가 없으면 이대로 작성한다.** 반대나 수정 의견이 있으면 알려주면 그에 맞춰 쓴다.
+나머지 항목은 회신을 기다리지 않고 지금 작성한다.
+
+## 1. `users` 문서는 클라이언트가 만든다 (D)
+
+```
+allow create: if request.auth.uid == uid
+              && request.resource.data.ticketBalance == 0
+              && request.resource.data.ticketsIssued == 0
+              && request.resource.data.placesVisited == 0;
+
+allow update: if request.auth.uid == uid
+              && 변경 필드가 nickname, avatarUrl 뿐일 것;
+```
+
+회원가입 직후 앱이 `users/{uid}` 를 만들고, 규칙이 카운터 3개를 0으로 강제한다.
+
+Auth `onCreate` 트리거 함수를 쓰지 않는 이유는 함수가 4개가 되고 배포 단위가 하나 늘기
+때문이다. 규칙 세 줄이 같은 보장을 한다.
+
+**앱 작업:** 회원가입 성공 직후 `users/{uid}` 생성. `nickname` 은 가입 폼 값, 카운터 3개는
+반드시 `0`. 하나라도 0이 아니면 규칙이 거부한다.
+
+**이 안이 뒤집히면:** 규칙의 `allow create` 가 `if false` 가 되고 트리거 함수를 추가한다.
+정반대 방향이라 미리 쓸 수 없다.
+
+## 2. `tickets` 목록 조회는 본인 것만 연다 (E)
+
+```
+allow get:  if 본인 티켓이거나 visibility == 'public';
+allow list: if 쿼리에 userId == request.auth.uid 가 포함될 것;
+```
+
+[screens.md](https://github.com/spencer0124/pindom/blob/main/docs/reference/screens.md) 를
+확인한 결과 **남의 티켓을 보여주는 화면이 설계에 없다.** 컬렉션(`/(tabs)/tickets`)은 본인
+것이고, 공개 티켓을 목록으로 부르는 지점이 현재 없다.
+
+Firestore 보안 규칙은 결과를 걸러주지 않는다. 목록 조회를 공개 티켓까지 열어두면 앱이
+쿼리에 `where('visibility', '==', 'public')` 을 빠뜨렸을 때 **전체가
+`permission-denied`** 로 거부되고, 원인이 규칙인지 코드인지 구분하기 어렵다. 소비하는
+화면이 없는 동안은 잠가두는 편이 실패 지점을 줄인다.
+
+문서 하나를 직접 읽는 경우(`get`)는 공개 티켓도 허용한다. 나중에 티켓 공유 링크 같은 기능이
+생기면 그대로 동작한다.
+
+**앱 작업:** 티켓 목록 쿼리에 항상 `where('userId', '==', 현재 uid)` 를 포함.
+
+**이 안이 뒤집히면:** 남의 공개 티켓을 보여주는 화면이 생길 때 `allow list` 에 조건을 하나
+더 여는 것으로 끝난다. 되돌리는 비용이 작아 지금 잠가도 손해가 없다.
+
+## 회신이 필요 없는 항목
+
+아래는 백엔드 단독으로 확정 가능해 회신을 기다리지 않고 Phase 3에서 작성한다.
+
+| 대상 | 규칙 |
+| --- | --- |
+| `places`, `raffles` | 로그인 사용자 읽기, 쓰기 금지 |
+| `tickets`, `raffleEntries` | 클라이언트 쓰기 전면 금지 |
+| `verificationSessions` | 읽기·쓰기 전면 금지 |
+| `posts` | 본인 글 작성·수정·삭제, 카운트 필드 조작 금지 |
+| Storage | 본인 경로만, 이미지 타입만, 용량 상한 |
