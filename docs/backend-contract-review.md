@@ -532,3 +532,26 @@ places.geohash 삭제
 촬영지가 **1,000개를 넘으면** 전체 조회의 응답 크기가 부담이 된다. 다만 그때도 해법은 geohash가 아니다. 전국 표시라는 요구는 그대로이므로, 지도용으로 좌표와 이름만 담은 경량 목록을 따로 두거나 `updatedAt` 기준 증분 갱신으로 전환하는 쪽이 맞다.
 
 > 건너뜀: geohash 인덱스·범위 쿼리·지오 라이브러리. 전국 표시 요구가 있는 한 도입 시점 없음.
+
+---
+
+# 스키마 변경 요약
+
+앱 쪽에 영향이 가는 것만 모았다.
+
+| 대상 | 변경 | 앱 작업 |
+| --- | --- | --- |
+| `verifyLocation` request | `isMock: boolean` 추가 | 필요 (Q1) |
+| `verifyLocation` reason | `'mock_location'` 추가 | 문구만 |
+| `issueTicket` errors | `'cooldown_active'` + `nextAvailableAt` 추가 | 문구만 |
+| `verificationSessions.status` | `'consumed'` 추가 | 없음 |
+| `verificationSessions` | `expiresAt: Timestamp` 추가 | 없음 |
+| `users` | 클라이언트가 자기 문서 생성 (카운터 0 고정) | 필요 (D) |
+| `enterRaffle` | `idempotencyKey` 형식 제한 | 확인만 |
+| `places.geohash` | **삭제** | 지도 로직 단순화 (H) |
+| `places.ticketCount` | function-only 표기 | 없음 |
+| EXIF 제거 | 담당을 앱으로 | 필요 (Q4) |
+| App Check | 연동 | 필요 (Q1) |
+
+**함수는 3개 그대로.** 추가 함수 없이 전부 해결된다.
+
