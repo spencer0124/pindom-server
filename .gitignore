@@ -1,0 +1,21 @@
+# Node
+node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# 서비스 계정 키 — 절대 커밋 금지. 이 레포는 public.
+*-firebase-adminsdk-*.json
+service-account*.json
+serviceAccountKey.json
+
+# 환경 변수
+.env
+.env.local
+.env.*.local
+
+# 빌드 산출물
+functions/lib/
