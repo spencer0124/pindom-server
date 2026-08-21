@@ -2,15 +2,168 @@ rules_version = '2';
 
 // PINDOM Firestore 보안 규칙
 //
-// 현재 상태: 전면 차단. 실제 규칙은 Phase 3에서 작성한다.
-// 사양은 docs/backend-contract-review.md 와 앱 레포의
-// docs/reference/backend-contract.md "Write ownership" 표를 따른다.
+// 기준 문서: 앱 레포의 docs/reference/backend-contract.md "Write ownership" 표.
+// 필드 이름이나 쓰기 주체가 어긋나면 그 문서가 심판이다.
 //
-// 차단으로 시작하는 이유: 테스트 모드로 열어두면 30일 뒤 조용히 닫히고,
-// 그때 원인을 찾는 데 시간이 든다. 열 곳을 하나씩 여는 편이 안전하다.
+// 원칙 세 가지:
+//   1. 기본은 차단. 열 곳만 하나씩 연다 (파일 끝 catch-all).
+//   2. 돈처럼 취급되는 값(ticketBalance·ticketsIssued·placesVisited·tier·각종 count)은
+//      클라이언트가 절대 못 쓴다. 예외는 회원가입 때 0으로 박는 단 한 번뿐.
+//   3. 규칙은 결과를 걸러주지 않는다. 목록 조회는 쿼리 자체가 안전할 때만 허용된다.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // 이번 쓰기가 실제로 건드리는 필드 집합.
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // --- 시드 데이터 — 로그인하면 읽기, 쓰기는 백엔드만 -----------------------
+
+    match /artists/{artistId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /courses/{courseId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /raffles/{raffleId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /places/{placeId} {
+      allow read: if signedIn();
+      allow write: if false;
+
+      // 갤러리는 issueTicket 이 쓴다. 클라이언트가 직접 올릴 수 있으면
+      // "인증된 사람만 올린 사진 벽" 이라는 성질 자체가 사라진다.
+      match /gallery/{photoId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+
+      // 리뷰 문서 id 는 ticketId 다. Firestore 의 id 유일성이
+      // "티켓 하나에 리뷰 하나" 를 함수 없이 강제한다.
+      match /reviews/{ticketId} {
+        function ticketDoc() {
+          return get(/databases/$(database)/documents/tickets/$(ticketId)).data;
+        }
+
+        allow read: if signedIn();
+
+        allow create: if signedIn()
+                      && exists(/databases/$(database)/documents/tickets/$(ticketId))
+                      && ticketDoc().userId == request.auth.uid
+                      && ticketDoc().placeId == placeId
+                      && request.resource.data.authorId == request.auth.uid
+                      && request.resource.data.ticketId == ticketId
+                      && request.resource.data.likeCount == 0
+                      // 비정규화된 작성자 정보는 클라이언트가 보내지만 값은 대조한다.
+                      // 대조하지 않으면 아무나 clubGo 배지를 달고 리뷰를 쓴다.
+                      && request.resource.data.authorNickname == userDoc().nickname
+                      && request.resource.data.authorTier == userDoc().tier;
+
+        allow update: if isOwner(resource.data.authorId)
+                      && changed().hasOnly(['text', 'tags']);
+
+        allow delete: if isOwner(resource.data.authorId);
+      }
+    }
+
+    // --- users — 본인 문서만 ------------------------------------------------
+
+    match /users/{uid} {
+      // 타인 문서는 열지 않는다. Firestore 는 필드 단위 읽기를 막을 수 없어
+      // 문서를 열면 email 까지 따라 나오고, 타인 프로필 화면은 설계에 없다.
+      // 피드·리뷰는 작성자 정보를 자기 문서에 비정규화해 들고 있다.
+      allow get, list: if isOwner(uid);
+
+      // 회원가입 직후 앱이 자기 문서를 만든다. 카운터 3개는 반드시 0.
+      allow create: if isOwner(uid)
+                    && request.resource.data.ticketBalance == 0
+                    && request.resource.data.ticketsIssued == 0
+                    && request.resource.data.placesVisited == 0;
+
+      // 계약서가 사용자 편집을 허용하는 여섯 필드. hasOnly 가 나머지를 전부 막는다
+      // — tier, 카운터 3개, email, createdAt.
+      allow update: if isOwner(uid)
+                    && changed().hasOnly(['nickname', 'avatarUrl', 'bio',
+                                          'followedArtistIds', 'profileVisibility', 'locale']);
+
+      allow delete: if false;
+    }
+
+    // --- tickets — issueTicket 전용, 공개 여부만 본인이 토글 --------------------
+
+    match /tickets/{ticketId} {
+      // 문서 하나를 직접 읽는 경우는 공개 티켓도 허용한다 (공유 링크 대비).
+      allow get: if signedIn()
+                 && (resource.data.userId == request.auth.uid
+                     || resource.data.visibility == 'public');
+
+      // 목록 조회는 쿼리에 userId == uid 가 있어야만 통과한다.
+      // 규칙은 필터가 아니라 쿼리 심사이므로, 조건이 빠지면 쿼리 전체가 거부된다.
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+
+      allow create, delete: if false;
+      allow update: if isOwner(resource.data.userId)
+                    && changed().hasOnly(['visibility']);
+    }
+
+    // --- raffleEntries — enterRaffle 전용 ------------------------------------
+
+    match /raffleEntries/{entryId} {
+      allow get: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // --- posts — 유일한 대량 사용자 작성 컬렉션 --------------------------------
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+
+      allow create: if isOwner(request.resource.data.authorId)
+                    && request.resource.data.likeCount == 0
+                    && request.resource.data.commentCount == 0
+                    // 리뷰와 같은 이유로 대조한다. 앱은 게시글에도 작성자 닉네임과 등급을
+                    // 비정규화해 함께 쓴다 — 대조가 없으면 남의 닉네임과 clubGo 배지를 달고
+                    // 글을 쓸 수 있다.
+                    && request.resource.data.authorNickname == userDoc().nickname
+                    && request.resource.data.authorTier == userDoc().tier;
+
+      allow update: if isOwner(resource.data.authorId)
+                    && changed().hasOnly(['body', 'imageUrls']);
+
+      allow delete: if isOwner(resource.data.authorId);
+    }
+
+    // --- verificationSessions — verifyLocation 전용 ---------------------------
+
+    // 감사 로그다. 클라이언트는 sessionId 만 돌려줄 뿐 읽지도 쓰지도 않는다.
+    match /verificationSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // --- 나머지 전부 차단 ------------------------------------------------------
+
     match /{document=**} {
       allow read, write: if false;
     }

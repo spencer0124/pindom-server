@@ -576,10 +576,16 @@ allow create: if request.auth.uid == uid
               && request.resource.data.placesVisited == 0;
 
 allow update: if request.auth.uid == uid
-              && 변경 필드가 nickname, avatarUrl 뿐일 것;
+              && 변경 필드가 nickname, avatarUrl, bio, followedArtistIds,
+                 profileVisibility, locale 여섯 개 안에 있을 것;
 ```
 
 회원가입 직후 앱이 `users/{uid}` 를 만들고, 규칙이 카운터 3개를 0으로 강제한다.
+
+> **2026-08-22 정정.** 최초 초안의 `allow update` 는 `nickname` 과 `avatarUrl` 두 개만
+> 허용했다. 계약서 write-ownership 표는 여섯 필드를 허용하며, 두 개로 쓰면 프로필 편집·언어·
+> 최애 찾기가 `permission-denied` 로 실패한다. 앱 쪽 지적을 받아 위와 같이 정정했고
+> Phase 3 규칙은 이 여섯 필드로 작성됐다. `allow create` 는 원안 그대로다.
 
 Auth `onCreate` 트리거 함수를 쓰지 않는 이유는 함수가 4개가 되고 배포 단위가 하나 늘기
 때문이다. 규칙 세 줄이 같은 보장을 한다.
@@ -625,3 +631,85 @@ Firestore 보안 규칙은 결과를 걸러주지 않는다. 목록 조회를 �
 | `verificationSessions` | 읽기·쓰기 전면 금지 |
 | `posts` | 본인 글 작성·수정·삭제, 카운트 필드 조작 금지 |
 | Storage | 본인 경로만, 이미지 타입만, 용량 상한 |
+
+---
+
+# Phase 3 결과 — 보안 규칙 작성 후 앱 쪽 확인 사항
+
+`firestore.rules` 와 `storage.rules` 를 작성하면서 계약서·앱 코드와 대조한 결과다. 규칙은 이미
+아래 판단대로 쓰여 있고, **이의가 있으면 알려주면 그에 맞춰 고친다.**
+
+## 1. `users` update — 여섯 필드로 정정 (수용)
+
+지적대로 고쳤다. 위 [합의 제안 1번](#1-users-문서는-클라이언트가-만든다-d)의 정정 주석 참고.
+`allow create` 는 원안 그대로다.
+
+## 2. 리뷰는 **티켓당 1개** — 앱 코드 변경이 필요하다
+
+리뷰 문서 id 를 `ticketId` 로 고정했다. Firestore 의 id 유일성이 "티켓 하나에 리뷰 하나" 를
+함수 없이 강제하고, 같은 장소를 재방문해 티켓을 또 받으면 리뷰를 또 쓸 수 있다. 티켓 자체가
+30일 쿨다운이므로 장소당 최대 월 1개로 스팸도 자연히 막힌다.
+
+규칙은 쓰기 시점에 그 티켓이 **본인 것이고 그 장소의 티켓인지** 확인한다.
+
+**앱 작업:** `addReview` 가 `addDoc` (자동 id) 을 쓰고 있어 현재 코드로는 전부 거부된다.
+
+```ts
+// src/lib/repositories/firebase.ts — addReview
+setDoc(doc(db(), 'places', input.placeId, 'reviews', input.ticketId), {
+  ...,
+  ticketId: input.ticketId,   // 필드로도 함께 저장
+});
+```
+
+`NewReview` 에 `ticketId: string` 이 필요하다 (`src/lib/domain/review.ts`).
+
+**계약서 변경 요청:** `places/*/reviews` 스키마에 `ticketId` 추가, write-ownership 의
+"one per place" → **"one per ticket"**.
+
+## 3. 타인 `users` 문서 읽기는 닫았다
+
+계약서는 타인의 `nickname`·`avatarUrl`·`tier` 읽기를 허용하지만, **Firestore 규칙은 필드 단위
+읽기를 막을 수 없다.** 문서를 열면 `email` 까지 함께 나간다.
+
+`screens.md` 에 타인 프로필 화면이 없고, 피드·리뷰는 작성자 정보를 자기 문서에 비정규화해
+들고 있어(`authorNickname`, `authorAvatarUrl`, `authorTier`) 실제로 타인 문서를 읽는 지점이
+없다. 앱 코드에서도 `users` 를 읽는 곳은 본인 문서뿐이다.
+
+화면이 생기면 그때 둘 중 하나를 고르면 된다 — 공개 3필드만 `userProfiles/{uid}` 로 분리하거나,
+`email` 노출을 감수하고 문서 전체를 열거나.
+
+**계약서 변경 요청:** write-ownership 의 `users` 읽기 열을 "own document" 로.
+
+## 4. 게시글도 닉네임·등급을 대조한다
+
+`posts.create` 가 `authorNickname` 과 `authorTier` 를 클라이언트에서 써 보내므로, 규칙이
+`users` 문서와 대조한다. 대조가 없으면 남의 닉네임과 `clubGo` 배지를 달고 글을 쓸 수 있다.
+리뷰도 같다. 쓰기 1건당 문서 읽기 1건이 붙지만 위조를 막는 값으로는 싸다.
+
+**앱 영향 없음** — 지금 코드가 이미 본인 `users` 문서에서 읽어 넣고 있다.
+
+**계약서 변경 요청 2건:** `posts` 스키마에 앱이 실제로 쓰고 있는 `boardId` 와 `authorTier` 가
+빠져 있다. write-ownership 의 "never `authorTier`" 는 이 대조로 대체된다.
+
+## 5. Storage 목록 조회를 닫았다
+
+Storage 에서 `read` 는 `get` 과 `list` 를 함께 뜻한다. 열어두면 누구나
+`tickets/{남의 uid}/` 를 훑어 **비공개 티켓 사진까지** 꺼낼 수 있다. 앱은 문서에 저장된 URL 로
+접근하므로 목록이 필요 없다 — `get` 만 열고 `list` 는 닫았다. 업로드는 본인 경로·이미지 타입·
+10MB 상한.
+
+## 6. 복합 인덱스 2개
+
+앱의 실제 쿼리에 필요해 `firestore.indexes.json` 에 넣었다.
+
+| 컬렉션 | 필드 | 쓰는 곳 |
+| --- | --- | --- |
+| `tickets` | `userId` · `visibility` · `issuedAt` desc | 컬렉션 / 보관함 |
+| `posts` | `boardId` · `createdAt` desc | 커뮤니티 피드 |
+
+## 아직 막혀 있는 것
+
+**Tier 임계값** — `club10` / `club20` / `clubGo` 의 경계값, 그리고 아티스트별인지 전역인지.
+`issueTicket` 이 트랜잭션 안에서 `tier` 를 다시 계산하므로 이 값 없이는 함수를 끝낼 수 없다.
+Phase 4 가 여기서 멈춰 있다.

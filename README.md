@@ -21,7 +21,11 @@ PINDOM의 Firebase 백엔드. Firestore 스키마, 보안 규칙, Cloud Function
 ```bash
 npm install -g firebase-tools
 firebase login
+npm --prefix functions install
 ```
+
+에뮬레이터는 Java 를 쓴다. 없으면 `brew install openjdk` 후 PATH 에 추가한다 —
+`export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"`.
 
 Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드는 되지만 배포 시
 런타임과 어긋날 수 있다.
@@ -31,7 +35,9 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | 명령 | 하는 일 |
 | --- | --- |
 | `npm --prefix functions run build` | 함수 TypeScript 컴파일 |
-| `firebase deploy --only firestore:rules` | 보안 규칙만 배포 |
+| `firebase deploy --only firestore:rules` | Firestore 규칙만 배포 |
+| `firebase deploy --only storage` | Storage 규칙만 배포 |
+| `firebase emulators:exec --only firestore,storage "node --test functions/test/rules.test.mjs"` | 보안 규칙 테스트 |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
 
@@ -45,12 +51,22 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 
 설계 판단의 근거는 [docs/backend-contract-review.md](docs/backend-contract-review.md) 에 있다.
 
+## 배포 후 한 번 하는 설정
+
+`verificationSessions` 의 TTL 정책은 `firebase.json` 으로 배포되지 않는다. 만료된 세션이
+영구히 남지 않도록 배포 후 한 번 설정한다.
+
+```bash
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=verificationSessions --enable-ttl
+```
+
 ## 진행 상황
 
 - [x] Phase 0 — Firebase 프로젝트 생성, 앱 등록, Auth 활성화
 - [x] Phase 1 — 계약서 리뷰
 - [x] Phase 2 — 저장소 스캐폴드
-- [ ] Phase 3 — 보안 규칙
+- [x] Phase 3 — 보안 규칙
 - [ ] Phase 4 — Cloud Functions
 - [ ] Phase 5 — 시드 데이터와 배포
 
