@@ -64,6 +64,9 @@ const review = (over = {}) => ({
   text: '좋았어요', tags: ['조용함'], likeCount: 0, ...over,
 });
 
+// 리뷰는 방문을 검증하지 않는다 — 규칙이 컬렉션을 조회할 수 없어서다.
+// 앱이 리뷰 id 를 ticketId 로 쓰기 시작하면 그때 티켓 소유 검사를 추가한다.
+
 describe('users', () => {
   it('본인 문서 생성 — 카운터 0이면 통과, 하나라도 0이 아니면 거부', async () => {
     const base = { email: 'd@example.com', nickname: '신규', ticketBalance: 0, ticketsIssued: 0, placesVisited: 0 };
@@ -111,25 +114,25 @@ describe('tickets', () => {
   });
 });
 
-describe('reviews — 티켓당 1개', () => {
-  const path = (db, placeId, ticketId) => doc(db, 'places', placeId, 'reviews', ticketId);
+describe('reviews', () => {
+  const path = (db, placeId, id) => doc(db, 'places', placeId, 'reviews', id);
 
-  it('본인 티켓 id 로 작성', async () => {
-    await assertSucceeds(setDoc(path(alice(), PLACE, 'tA1'), review({ ticketId: 'tA1' })));
+  it('본인 이름으로 작성 — 같은 장소에 여러 개도 허용', async () => {
+    await assertSucceeds(setDoc(path(alice(), PLACE, 'r1'), review()));
+    await assertSucceeds(setDoc(path(alice(), PLACE, 'r2'), review()));
   });
 
-  it('같은 장소라도 티켓이 다르면 또 쓸 수 있음', async () => {
-    await assertSucceeds(setDoc(path(alice(), PLACE, 'tA2'), review({ ticketId: 'tA2' })));
+  it('남의 이름, 등급 위조, likeCount 선점은 거부', async () => {
+    await assertFails(setDoc(path(alice(), PLACE, 'r3'), review({ authorId: BOB })));
+    await assertFails(setDoc(path(alice(), PLACE, 'r4'), review({ authorNickname: '밥' })));
+    await assertFails(setDoc(path(alice(), PLACE, 'r5'), review({ authorTier: 'clubGo' })));
+    await assertFails(setDoc(path(alice(), PLACE, 'r6'), review({ likeCount: 50 })));
   });
 
-  it('남의 티켓 id, 다른 장소의 티켓은 거부', async () => {
-    await assertFails(setDoc(path(alice(), PLACE, 'tB1'), review({ ticketId: 'tB1' })));
-    await assertFails(setDoc(path(alice(), PLACE, 'tA3'), review({ ticketId: 'tA3' })));
-  });
-
-  it('등급 위조와 likeCount 선점은 거부', async () => {
-    await assertFails(setDoc(path(alice(), OTHER_PLACE, 'tA3'), review({ ticketId: 'tA3', authorTier: 'clubGo' })));
-    await assertFails(setDoc(path(alice(), OTHER_PLACE, 'tA3'), review({ ticketId: 'tA3', likeCount: 50 })));
+  it('수정은 본문과 태그만, 삭제는 본인만', async () => {
+    await assertSucceeds(updateDoc(path(alice(), PLACE, 'r1'), { text: '고침', tags: ['a'] }));
+    await assertFails(updateDoc(path(alice(), PLACE, 'r1'), { likeCount: 9 }));
+    await assertFails(updateDoc(path(bob(), PLACE, 'r1'), { text: '탈취' }));
   });
 });
 

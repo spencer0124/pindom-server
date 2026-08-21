@@ -59,24 +59,18 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // 리뷰 문서 id 는 ticketId 다. Firestore 의 id 유일성이
-      // "티켓 하나에 리뷰 하나" 를 함수 없이 강제한다.
-      match /reviews/{ticketId} {
-        function ticketDoc() {
-          return get(/databases/$(database)/documents/tickets/$(ticketId)).data;
-        }
-
+      // 리뷰는 앱이 자동 id 로 만든다. 규칙이 컬렉션을 조회할 수 없어 "이 사람이 여기
+      // 다녀왔는가" 를 확인할 방법이 없다 — 문서 id 로 접근할 수 있는 것만 볼 수 있기
+      // 때문이다. 작성자 신원과 배지만 대조한다.
+      //
+      // ponytail: 방문 검증 없음. 가본 적 없는 장소에도, 한 장소에 몇 개든 쓸 수 있다.
+      // 막으려면 앱이 리뷰 문서 id 를 ticketId 로 쓰고 ticketId 를 필드로도 보내야 한다.
+      // 그때 규칙은 get(tickets/$(ticketId)) 로 소유자와 장소를 확인하면 된다.
+      match /reviews/{reviewId} {
         allow read: if signedIn();
 
-        allow create: if signedIn()
-                      && exists(/databases/$(database)/documents/tickets/$(ticketId))
-                      && ticketDoc().userId == request.auth.uid
-                      && ticketDoc().placeId == placeId
-                      && request.resource.data.authorId == request.auth.uid
-                      && request.resource.data.ticketId == ticketId
+        allow create: if isOwner(request.resource.data.authorId)
                       && request.resource.data.likeCount == 0
-                      // 비정규화된 작성자 정보는 클라이언트가 보내지만 값은 대조한다.
-                      // 대조하지 않으면 아무나 clubGo 배지를 달고 리뷰를 쓴다.
                       && request.resource.data.authorNickname == userDoc().nickname
                       && request.resource.data.authorTier == userDoc().tier;
 
