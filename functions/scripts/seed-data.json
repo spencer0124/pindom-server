@@ -1,0 +1,179 @@
+{
+  "_note": "앱 레포 src/mocks 에서 옮긴 개발용 시드. 인물·작품 표기는 자리표시자이며 권리 확인 전이다. 카운터는 전부 함수가 채우는 값이라 0 으로 넣는다. closesInHours 는 실행 시각 기준으로 환산한다.",
+  "artists": [
+    {
+      "id": "artist-lumina",
+      "name": { "ko": "루미나", "en": "Lumina" },
+      "initial": "LM",
+      "imageUrl": "https://picsum.photos/seed/lumina/300/300",
+      "accentColor": "#58CF04"
+    },
+    {
+      "id": "artist-echoline",
+      "name": { "ko": "에코라인", "en": "Echoline" },
+      "initial": "EL",
+      "imageUrl": "https://picsum.photos/seed/echoline/300/300",
+      "accentColor": "#FF5E00"
+    },
+    {
+      "id": "artist-nightpost",
+      "name": { "ko": "나이트포스트", "en": "Nightpost" },
+      "initial": "NP"
+    }
+  ],
+  "places": [
+    {
+      "id": "place-jumunjin",
+      "roman": "Jumunjin Breakwater",
+      "name": { "ko": "주문진 방파제", "en": "Jumunjin Breakwater" },
+      "description": {
+        "ko": "바다를 등지고 서면 방파제 끝까지 한 프레임에 들어옵니다. 파도가 높은 날은 진입이 통제돼요.",
+        "en": "Stand with your back to the sea and the whole breakwater fits in one frame. Access closes when the swell is high."
+      },
+      "region": { "ko": "강원 강릉", "en": "Gangneung, Gangwon" },
+      "workTitle": { "ko": "도깨비", "en": "Goblin" },
+      "workKind": "mv",
+      "address": "강원특별자치도 강릉시 주문진읍 해안로 1609",
+      "artistIds": ["artist-lumina"],
+      "lat": 37.8983,
+      "lng": 128.8306,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://picsum.photos/seed/jumunjin/1200/800"
+    },
+    {
+      "id": "place-gamcheon",
+      "roman": "Gamcheon Culture Village",
+      "name": { "ko": "감천문화마을", "en": "Gamcheon Culture Village" },
+      "description": {
+        "ko": "계단식 골목 전체가 배경입니다. 주민 거주 구역이라 촬영 소음에 주의하세요.",
+        "en": "The terraced alleys are the set. People live here, so keep the noise down."
+      },
+      "region": { "ko": "부산 사하", "en": "Saha, Busan" },
+      "workTitle": { "ko": "변호인", "en": "The Attorney" },
+      "workKind": "drama",
+      "address": "부산광역시 사하구 감내2로 203",
+      "artistIds": ["artist-echoline"],
+      "lat": 35.0975,
+      "lng": 129.0107,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://picsum.photos/seed/gamcheon/1200/800"
+    },
+    {
+      "id": "place-namsan",
+      "roman": "N Seoul Tower",
+      "name": { "ko": "N서울타워 전망대", "en": "N Seoul Tower Observatory" },
+      "description": {
+        "ko": "자물쇠 벽 앞이 인증샷 포인트. 해질녘 30분이 가장 붐빕니다.",
+        "en": "The lock wall is the shot. The half hour around sunset is the busiest."
+      },
+      "region": { "ko": "서울 중구", "en": "Jung-gu, Seoul" },
+      "workTitle": { "ko": "별에서 온 그대", "en": "My Love from the Star" },
+      "workKind": "drama",
+      "address": "서울특별시 용산구 남산공원길 105",
+      "artistIds": ["artist-lumina"],
+      "lat": 37.5512,
+      "lng": 126.9882,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://picsum.photos/seed/namsan/1200/800"
+    },
+    {
+      "id": "place-cheonggye",
+      "roman": "Cheonggyecheon Gwangtonggyo",
+      "name": { "ko": "청계천 광통교", "en": "Gwangtonggyo Bridge" },
+      "description": {
+        "ko": "다리 아래 물길을 따라 걷는 장면의 실제 위치입니다.",
+        "en": "The walk along the water under the bridge was filmed here."
+      },
+      "region": { "ko": "서울 종로", "en": "Jongno, Seoul" },
+      "workTitle": { "ko": "미생", "en": "Misaeng" },
+      "workKind": "drama",
+      "address": "서울특별시 종로구 관철동",
+      "artistIds": ["artist-lumina"],
+      "lat": 37.569,
+      "lng": 126.982,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://picsum.photos/seed/cheonggye/1200/800"
+    },
+    {
+      "id": "place-eurwangni",
+      "roman": "Eurwangni Beach",
+      "name": { "ko": "을왕리 해수욕장", "en": "Eurwangni Beach" },
+      "description": {
+        "ko": "뮤직비디오 후반부 롱테이크가 촬영된 백사장 북쪽 끝입니다.",
+        "en": "The north end of the sand, where the closing long take was shot."
+      },
+      "region": { "ko": "인천 중구", "en": "Jung-gu, Incheon" },
+      "workTitle": { "ko": "밤편지 M/V", "en": "Night Letter M/V" },
+      "workKind": "mv",
+      "address": "인천광역시 중구 용유서로 302번길 16",
+      "artistIds": ["artist-lumina", "artist-nightpost"],
+      "lat": 37.4463,
+      "lng": 126.3733,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://picsum.photos/seed/eurwangni/1200/800"
+    }
+  ],
+  "courses": [
+    {
+      "id": "course-gangneung",
+      "artistId": "artist-lumina",
+      "name": { "ko": "강릉 바다 코스", "en": "Gangneung Coast Course" },
+      "description": {
+        "ko": "방파제에서 시작해 해안도로를 따라 걷는 반나절 코스",
+        "en": "Half a day on foot, from the breakwater along the coast road"
+      },
+      "placeIds": ["place-jumunjin", "place-eurwangni"]
+    },
+    {
+      "id": "course-seoul-night",
+      "artistId": "artist-lumina",
+      "name": { "ko": "서울 야경 코스", "en": "Seoul After Dark" },
+      "description": {
+        "ko": "해질녘에 출발해 남산에서 마무리하는 저녁 코스",
+        "en": "Start at dusk, finish on Namsan"
+      },
+      "placeIds": ["place-cheonggye", "place-namsan"]
+    }
+  ],
+  "raffles": [
+    {
+      "id": "raffle-fansign",
+      "title": "팬사인회 응모권",
+      "prizeDescription": "9월 서울 팬사인회 입장 2인",
+      "imageUrl": "https://picsum.photos/seed/raffle1/1200/800",
+      "ticketCost": 3,
+      "closesInHours": 18,
+      "capacity": 1000,
+      "status": "open"
+    },
+    {
+      "id": "raffle-album",
+      "title": "친필 사인 앨범",
+      "prizeDescription": "멤버 전원 사인 정규 3집",
+      "imageUrl": "https://picsum.photos/seed/raffle2/1200/800",
+      "ticketCost": 2,
+      "closesInHours": 96,
+      "capacity": 500,
+      "status": "open"
+    },
+    {
+      "id": "raffle-concert",
+      "title": "단독 콘서트 티켓",
+      "prizeDescription": "10월 고척돔 지정석 1매",
+      "imageUrl": "https://picsum.photos/seed/raffle3/1200/800",
+      "ticketCost": 8,
+      "closesInHours": 240,
+      "status": "open"
+    },
+    {
+      "id": "raffle-closed",
+      "title": "포토카드 세트",
+      "prizeDescription": "미공개 컷 12종",
+      "imageUrl": "https://picsum.photos/seed/raffle4/1200/800",
+      "ticketCost": 1,
+      "closesInHours": -24,
+      "capacity": 2000,
+      "status": "closed"
+    }
+  ]
+}

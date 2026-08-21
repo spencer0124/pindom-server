@@ -68,9 +68,6 @@ const review = (over = {}) => ({
   text: '좋았어요', tags: ['조용함'], likeCount: 0, createdAt: serverTimestamp(), ...over,
 });
 
-// 리뷰는 방문을 검증하지 않는다 — 규칙이 컬렉션을 조회할 수 없어서다.
-// 앱이 리뷰 id 를 ticketId 로 쓰기 시작하면 그때 티켓 소유 검사를 추가한다.
-
 describe('users', () => {
   it('본인 문서 생성 — 카운터 0이면 통과, 하나라도 0이 아니면 거부', async () => {
     const base = { email: 'd@example.com', nickname: '신규', ticketBalance: 0, ticketsIssued: 0, placesVisited: 0 };
@@ -124,15 +121,12 @@ describe('tickets', () => {
 describe('reviews', () => {
   const path = (db, placeId, id) => doc(db, 'places', placeId, 'reviews', id);
 
-  it('본인 이름으로 작성 — 같은 장소에 여러 개도 허용', async () => {
+  // 앨리스에게는 tier 필드가 없다 — 앱의 signUp 이 쓰지 않기 때문이다.
+  // 규칙이 기본값 club10 으로 읽어야 이 통과가 성립한다.
+  it('본인 이름으로 작성 — tier 없는 사용자, 같은 장소에 여러 개도 허용', async () => {
     await assertSucceeds(setDoc(path(alice(), PLACE, 'r1'), review()));
     await assertSucceeds(setDoc(path(alice(), PLACE, 'r2'), review()));
-  });
-
-  it('tier 가 아직 없는 사용자도 쓸 수 있다 — 기본 등급으로 대조', async () => {
-    // 앨리스에게는 tier 필드가 없다. 규칙이 기본값 club10 으로 읽어야 통과한다.
-    await assertSucceeds(setDoc(path(alice(), OTHER_PLACE, 'r0'), review()));
-    await assertFails(setDoc(path(alice(), OTHER_PLACE, 'r0b'), review({ authorTier: 'club20' })));
+    await assertFails(setDoc(path(alice(), PLACE, 'r0b'), review({ authorTier: 'club20' })));
   });
 
   it('tier 가 있는 사용자는 그 값과 대조한다', async () => {

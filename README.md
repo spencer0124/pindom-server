@@ -42,6 +42,7 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | `firebase emulators:exec --only auth,firestore,storage,functions "node --test --test-force-exit functions/test/functions.test.mjs"` | 함수 동작 테스트 |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
+| `npm --prefix functions run seed` | 시드 데이터 적재 (에뮬레이터). 실제 프로젝트는 `-- --project <id> --yes` |
 
 ## 결정 사항
 
@@ -73,7 +74,7 @@ gcloud firestore fields ttls update expiresAt \
 - [x] Phase 2 — 저장소 스캐폴드
 - [x] Phase 3 — 보안 규칙
 - [x] Phase 4 — Cloud Functions (작성·검증 완료, 배포는 Phase 5)
-- [ ] Phase 5 — 시드 데이터와 배포
+- [ ] Phase 5 — 시드 데이터와 배포 (시드 스크립트 완료, 배포는 Blaze 요금제 확인 후)
 
 ## 보안
 
