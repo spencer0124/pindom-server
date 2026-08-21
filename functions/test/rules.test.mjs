@@ -12,8 +12,10 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
-import { doc, getDoc, getDocs, query, setDoc, updateDoc, where, collection } from 'firebase/firestore';
-import { listAll, ref, uploadBytes } from 'firebase/storage';
+import {
+  Timestamp, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where,
+} from 'firebase/firestore';
+import { deleteObject, listAll, ref, uploadBytes } from 'firebase/storage';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -38,16 +40,18 @@ before(async () => {
   // 규칙을 우회해 기반 데이터를 심는다.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    // 앱의 signUp 이 쓰는 그대로. tier 는 없다 — issueTicket 이 첫 티켓에서 만든다.
     await setDoc(doc(db, 'users', ALICE), {
-      email: 'alice@example.com', nickname: '앨리스', tier: 'club10',
+      email: 'alice@example.com', nickname: '앨리스',
       ticketBalance: 3, ticketsIssued: 3, placesVisited: 2,
     });
+    // 티켓을 쌓아 tier 가 생긴 사용자.
     await setDoc(doc(db, 'users', BOB), {
-      email: 'bob@example.com', nickname: '밥', tier: 'club10',
-      ticketBalance: 0, ticketsIssued: 0, placesVisited: 0,
+      email: 'bob@example.com', nickname: '밥', tier: 'club20',
+      ticketBalance: 0, ticketsIssued: 22, placesVisited: 9,
     });
     await setDoc(doc(db, 'users', CAROL), {
-      email: 'carol@example.com', nickname: '캐롤', tier: 'club10',
+      email: 'carol@example.com', nickname: '캐롤',
       ticketBalance: 0, ticketsIssued: 0, placesVisited: 0,
     });
     await setDoc(doc(db, 'tickets', 'tA1'), { userId: ALICE, placeId: PLACE, visibility: 'private', serial: 'PD-1' });
@@ -61,7 +65,7 @@ after(async () => { await env.cleanup(); });
 
 const review = (over = {}) => ({
   authorId: ALICE, authorNickname: '앨리스', authorTier: 'club10',
-  text: '좋았어요', tags: ['조용함'], likeCount: 0, ...over,
+  text: '좋았어요', tags: ['조용함'], likeCount: 0, createdAt: serverTimestamp(), ...over,
 });
 
 // 리뷰는 방문을 검증하지 않는다 — 규칙이 컬렉션을 조회할 수 없어서다.
@@ -72,6 +76,8 @@ describe('users', () => {
     const base = { email: 'd@example.com', nickname: '신규', ticketBalance: 0, ticketsIssued: 0, placesVisited: 0 };
     const dave = env.authenticatedContext('dave').firestore();
     await assertFails(setDoc(doc(dave, 'users', 'dave'), { ...base, ticketBalance: 10 }));
+    // tier 는 함수 전용이다. 가입 요청에 끼워 넣으면 이후 배지 대조가 위조된 값으로 통과한다.
+    await assertFails(setDoc(doc(dave, 'users', 'dave'), { ...base, tier: 'clubGo' }));
     await assertSucceeds(setDoc(doc(dave, 'users', 'dave'), base));
   });
 
@@ -110,6 +116,7 @@ describe('tickets', () => {
   it('본인 티켓의 visibility 만 수정 가능', async () => {
     await assertSucceeds(updateDoc(doc(alice(), 'tickets', 'tA1'), { visibility: 'public' }));
     await assertFails(updateDoc(doc(alice(), 'tickets', 'tA1'), { serial: 'PD-FAKE' }));
+    await assertFails(updateDoc(doc(alice(), 'tickets', 'tA1'), { visibility: 'x' }));
     await assertFails(updateDoc(doc(bob(), 'tickets', 'tA1'), { visibility: 'private' }));
   });
 });
@@ -122,11 +129,27 @@ describe('reviews', () => {
     await assertSucceeds(setDoc(path(alice(), PLACE, 'r2'), review()));
   });
 
+  it('tier 가 아직 없는 사용자도 쓸 수 있다 — 기본 등급으로 대조', async () => {
+    // 앨리스에게는 tier 필드가 없다. 규칙이 기본값 club10 으로 읽어야 통과한다.
+    await assertSucceeds(setDoc(path(alice(), OTHER_PLACE, 'r0'), review()));
+    await assertFails(setDoc(path(alice(), OTHER_PLACE, 'r0b'), review({ authorTier: 'club20' })));
+  });
+
+  it('tier 가 있는 사용자는 그 값과 대조한다', async () => {
+    const mine = { authorId: BOB, authorNickname: '밥', authorTier: 'club20',
+      text: 't', tags: [], likeCount: 0, createdAt: serverTimestamp() };
+    await assertSucceeds(setDoc(path(bob(), PLACE, 'rb1'), mine));
+    await assertFails(setDoc(path(bob(), PLACE, 'rb2'), { ...mine, authorTier: 'club10' }));
+  });
+
   it('남의 이름, 등급 위조, likeCount 선점은 거부', async () => {
     await assertFails(setDoc(path(alice(), PLACE, 'r3'), review({ authorId: BOB })));
     await assertFails(setDoc(path(alice(), PLACE, 'r4'), review({ authorNickname: '밥' })));
     await assertFails(setDoc(path(alice(), PLACE, 'r5'), review({ authorTier: 'clubGo' })));
     await assertFails(setDoc(path(alice(), PLACE, 'r6'), review({ likeCount: 50 })));
+    // 미래 시각으로 목록 상단을 점유하는 것을 막는다.
+    await assertFails(setDoc(path(alice(), PLACE, 'r7'),
+      review({ createdAt: Timestamp.fromMillis(4102444800000) })));
   });
 
   it('수정은 본문과 태그만, 삭제는 본인만', async () => {
@@ -139,7 +162,8 @@ describe('reviews', () => {
 describe('나머지', () => {
   const post = (over = {}) => ({
     boardId: 'b1', authorId: ALICE, authorNickname: '앨리스', authorTier: 'club10',
-    body: 'hi', imageUrls: [], likeCount: 0, commentCount: 0, ...over,
+    body: 'hi', imageUrls: [], likeCount: 0, commentCount: 0,
+    createdAt: serverTimestamp(), ...over,
   });
 
   it('posts — 카운트 선점, 남의 이름, 등급 위조 모두 거부', async () => {
@@ -149,6 +173,13 @@ describe('나머지', () => {
     await assertFails(setDoc(doc(db, 'posts', 'p3'), post({ authorId: BOB })));
     await assertFails(setDoc(doc(db, 'posts', 'p4'), post({ authorNickname: '밥' })));
     await assertFails(setDoc(doc(db, 'posts', 'p5'), post({ authorTier: 'clubGo' })));
+    await assertFails(setDoc(doc(db, 'posts', 'p6'),
+      post({ createdAt: Timestamp.fromMillis(4102444800000) })));
+  });
+
+  it('사용자 문서가 없는 계정은 글을 쓸 수 없다', async () => {
+    const eve = env.authenticatedContext('eve').firestore();
+    await assertFails(setDoc(doc(eve, 'posts', 'p7'), post({ authorId: 'eve', authorNickname: '이브' })));
   });
 
   it('verificationSessions 는 클라이언트에게 완전히 닫혀 있음', async () => {
@@ -170,6 +201,17 @@ describe('storage', () => {
     await assertFails(uploadBytes(ref(mine, `tickets/${BOB}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
     await assertFails(uploadBytes(ref(mine, `tickets/${ALICE}/a.txt`), bytes, { contentType: 'text/plain' }));
     await assertFails(uploadBytes(ref(mine, `secrets/${ALICE}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
+  });
+
+  it('본인 파일은 지울 수 있고 남의 파일은 못 지운다', async () => {
+    const bytes = new Uint8Array(8);
+    const mine = env.authenticatedContext(ALICE).storage();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(ref(ctx.storage(), `posts/${BOB}/b.jpg`), bytes, { contentType: 'image/jpeg' });
+    });
+    await assertSucceeds(uploadBytes(ref(mine, `posts/${ALICE}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
+    await assertSucceeds(deleteObject(ref(mine, `posts/${ALICE}/a.jpg`)));
+    await assertFails(deleteObject(ref(mine, `posts/${BOB}/b.jpg`)));
   });
 
   it('남의 폴더를 훑을 수 없음 — list 는 닫혀 있다', async () => {

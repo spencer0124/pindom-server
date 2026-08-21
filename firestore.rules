@@ -31,6 +31,20 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // 작성자 신원 대조. 가입 직후에는 tier 필드가 없다 — issueTicket 이 첫 티켓을 발행할 때
+    // 처음 생긴다. 없는 키를 그냥 읽으면 평가가 예외로 끝나 거부되므로 기본값과 함께 읽는다.
+    // club10 은 앱의 읽기 기본값이자 0–19 구간의 등급이라 양쪽과 맞는다.
+    function authorMatchesMe() {
+      return hasUserDoc()
+             && request.resource.data.authorId == request.auth.uid
+             && request.resource.data.authorNickname == userDoc().nickname
+             && request.resource.data.authorTier == userDoc().get('tier', 'club10');
+    }
+
     // --- 시드 데이터 — 로그인하면 읽기, 쓰기는 백엔드만 -----------------------
 
     match /artists/{artistId} {
@@ -69,10 +83,9 @@ service cloud.firestore {
       match /reviews/{reviewId} {
         allow read: if signedIn();
 
-        allow create: if isOwner(request.resource.data.authorId)
+        allow create: if authorMatchesMe()
                       && request.resource.data.likeCount == 0
-                      && request.resource.data.authorNickname == userDoc().nickname
-                      && request.resource.data.authorTier == userDoc().tier;
+                      && request.resource.data.createdAt == request.time;
 
         allow update: if isOwner(resource.data.authorId)
                       && changed().hasOnly(['text', 'tags']);
@@ -90,10 +103,13 @@ service cloud.firestore {
       allow get, list: if isOwner(uid);
 
       // 회원가입 직후 앱이 자기 문서를 만든다. 카운터 3개는 반드시 0.
+      // tier 도 함수 전용이다. 카운터만 고정하고 두면 가입 요청에 tier: 'clubGo' 를 끼워
+      // 넣을 수 있고, 그 뒤 리뷰·게시글의 등급 대조가 위조된 값을 기준으로 통과한다.
       allow create: if isOwner(uid)
                     && request.resource.data.ticketBalance == 0
                     && request.resource.data.ticketsIssued == 0
-                    && request.resource.data.placesVisited == 0;
+                    && request.resource.data.placesVisited == 0
+                    && !('tier' in request.resource.data);
 
       // 계약서가 사용자 편집을 허용하는 여섯 필드. hasOnly 가 나머지를 전부 막는다
       // — tier, 카운터 3개, email, createdAt.
@@ -118,7 +134,9 @@ service cloud.firestore {
 
       allow create, delete: if false;
       allow update: if isOwner(resource.data.userId)
-                    && changed().hasOnly(['visibility']);
+                    && changed().hasOnly(['visibility'])
+                    // 값도 본다. 'x' 가 저장되면 컬렉션에도 보관함에도 안 잡혀 티켓이 사라진다.
+                    && request.resource.data.visibility in ['public', 'private'];
     }
 
     // --- raffleEntries — enterRaffle 전용 ------------------------------------
@@ -134,14 +152,12 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if signedIn();
 
-      allow create: if isOwner(request.resource.data.authorId)
+      // 피드는 createdAt 내림차순이다. 값을 클라이언트가 쓰므로 서버 시각과 대조하지 않으면
+      // 미래 시각을 넣어 맨 위를 영구히 점유할 수 있다. 앱은 serverTimestamp() 를 쓴다.
+      allow create: if authorMatchesMe()
                     && request.resource.data.likeCount == 0
                     && request.resource.data.commentCount == 0
-                    // 리뷰와 같은 이유로 대조한다. 앱은 게시글에도 작성자 닉네임과 등급을
-                    // 비정규화해 함께 쓴다 — 대조가 없으면 남의 닉네임과 clubGo 배지를 달고
-                    // 글을 쓸 수 있다.
-                    && request.resource.data.authorNickname == userDoc().nickname
-                    && request.resource.data.authorTier == userDoc().tier;
+                    && request.resource.data.createdAt == request.time;
 
       allow update: if isOwner(resource.data.authorId)
                     && changed().hasOnly(['body', 'imageUrls']);
