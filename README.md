@@ -37,7 +37,9 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | `npm --prefix functions run build` | 함수 TypeScript 컴파일 |
 | `firebase deploy --only firestore:rules` | Firestore 규칙만 배포 |
 | `firebase deploy --only storage` | Storage 규칙만 배포 |
-| `firebase emulators:exec --only firestore,storage "node --test functions/test/rules.test.mjs"` | 보안 규칙 테스트 |
+| `node --test functions/test/logic.test.mjs` | 판정 로직 테스트 (에뮬레이터 불필요) |
+| `firebase emulators:exec --only firestore,storage "node --test --test-force-exit functions/test/rules.test.mjs"` | 보안 규칙 테스트 |
+| `firebase emulators:exec --only auth,firestore,storage,functions "node --test --test-force-exit functions/test/functions.test.mjs"` | 함수 동작 테스트 |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
 
@@ -48,6 +50,9 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | Firestore 위치 | `asia-northeast3` (서울) | 생성 시 확정, 변경 불가 |
 | Functions 리전 | `asia-northeast3` | 앱은 `getFunctions(app, 'asia-northeast3')` 로 호출 |
 | 함수 개수 | 3개 (`verifyLocation`·`issueTicket`·`enterRaffle`) | 나머지는 규칙으로 처리 |
+| 그랜트 유효시간 | 10분 | 계약서에 값이 없어 앱 목 구현이 쓰던 값을 따랐다 |
+| 등급 구간 | `club10` 0–19 · `club20` 20–29 · `clubGo` 30+ | 발행 수 기준·전역. 프로토타입의 `TIER 10—19` 에서 구간 폭 10 |
+| 응모 차감 순서 | 오래된 티켓부터 | 계약서에 순서 규정 없음 |
 
 설계 판단의 근거는 [docs/backend-contract-review.md](docs/backend-contract-review.md) 에 있다.
 
@@ -67,7 +72,7 @@ gcloud firestore fields ttls update expiresAt \
 - [x] Phase 1 — 계약서 리뷰
 - [x] Phase 2 — 저장소 스캐폴드
 - [x] Phase 3 — 보안 규칙
-- [ ] Phase 4 — Cloud Functions
+- [x] Phase 4 — Cloud Functions (작성·검증 완료, 배포는 Phase 5)
 - [ ] Phase 5 — 시드 데이터와 배포
 
 ## 보안
