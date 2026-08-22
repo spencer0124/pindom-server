@@ -8,6 +8,7 @@ import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/
 
 import {
   ACCURACY_GATE_M,
+  CLOCK_SKEW_MIN,
   DEFAULT_RADIUS_M,
   GRANT_TTL_MIN,
   IDEMPOTENCY_KEY_RE,
@@ -87,6 +88,11 @@ export const verifyLocation = onCall(async (req) => {
   const capturedAt = new Date(str(data, 'capturedAt'));
   if (Number.isNaN(capturedAt.getTime())) {
     throw new HttpsError('invalid-argument', 'capturedAt 이 ISO 8601 이 아니다');
+  }
+  // 시각은 클라이언트가 보낸 값이라 속도 계산의 분모다. 과거 시각을 넣으면 어떤 이동도
+  // 느려 보여 속도 검사가 통째로 무력해진다. 서버 시각에서 멀면 받지 않는다.
+  if (Math.abs(Date.now() - capturedAt.getTime()) > CLOCK_SKEW_MIN * 60 * 1000) {
+    throw new HttpsError('invalid-argument', 'capturedAt 이 서버 시각과 너무 멀다');
   }
   const isMock = data.isMock === true;
   const sessionId = typeof data.sessionId === 'string' ? data.sessionId : undefined;
@@ -236,15 +242,13 @@ export const issueTicket = onCall(async (req) => {
     throw new HttpsError('invalid-argument', 'visibility 는 public 또는 private 이다');
   }
 
+  // 그랜트는 여기서 한 번 보고 트랜잭션 안에서 다시 본다. 이 바깥 확인만 두면 같은 그랜트로
+  // 두 번 호출한 요청이 동시에 통과해 티켓이 두 장 나온다 — 인증 한 번에 티켓 한 장이라는
+  // 성질이 무너진다. 바깥 확인은 placeId 를 얻고 실패를 일찍 돌려주기 위한 것이다.
   const sessionRef = db.doc(`verificationSessions/${grantToken}`);
   const session = (await sessionRef.get()).data();
-  if (!session || session.userId !== uid) throw precondition('grant_expired');
-  if (session.status === 'consumed') throw precondition('grant_consumed');
-  const grantExpiresAt = session.grantExpiresAt as Timestamp | undefined;
-  if (session.status !== 'verified' || !grantExpiresAt || grantExpiresAt.toMillis() < Date.now()) {
-    throw precondition('grant_expired');
-  }
-  const placeId = session.placeId as string;
+  checkGrant(session, uid);
+  const placeId = session!.placeId as string;
 
   // 이 쿼리 하나가 쿨다운과 첫 방문 여부를 함께 답한다 — 결과가 비어 있으면 첫 방문이다.
   const previous = await db
@@ -275,7 +279,10 @@ export const issueTicket = onCall(async (req) => {
   const serial = mintSerial(randomBytes(8));
 
   const { ticketBalance, tier } = await db.runTransaction(async (tx) => {
-    const [userSnap, placeSnap] = await Promise.all([tx.get(userRef), tx.get(placeRef)]);
+    const [sessionSnap, userSnap, placeSnap] = await Promise.all([
+      tx.get(sessionRef), tx.get(userRef), tx.get(placeRef),
+    ]);
+    checkGrant(sessionSnap.data(), uid);
     const user = userSnap.data() ?? {};
     const ticketsIssued = ((user.ticketsIssued as number) ?? 0) + 1;
     const balance = ((user.ticketBalance as number) ?? 0) + 1;
@@ -331,6 +338,16 @@ export const issueTicket = onCall(async (req) => {
 
   return { ticketId: ticketRef.id, serial, ticketBalance, tier };
 });
+
+/** 그랜트가 이 호출자 것이고, 아직 살아 있고, 쓰이지 않았는가. */
+function checkGrant(session: FirebaseFirestore.DocumentData | undefined, uid: string): void {
+  if (!session || session.userId !== uid) throw precondition('grant_expired');
+  if (session.status === 'consumed') throw precondition('grant_consumed');
+  const grantExpiresAt = session.grantExpiresAt as Timestamp | undefined;
+  if (session.status !== 'verified' || !grantExpiresAt || grantExpiresAt.toMillis() < Date.now()) {
+    throw precondition('grant_expired');
+  }
+}
 
 /**
  * 클라이언트 SDK 로 올린 파일에는 다운로드 토큰이 메타데이터에 붙는다. 없으면 하나 만들어

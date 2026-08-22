@@ -133,6 +133,14 @@ describe('verifyLocation', () => {
     assert.equal(res.reason, 'mock_location');
   });
 
+  it('과거 시각을 보내면 거부 — 속도 검사의 분모를 조작할 수 없다', async () => {
+    const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    assert.equal(
+      await errorCode(invoke('verifyLocation', reading({ capturedAt: anHourAgo }))),
+      'functions/invalid-argument',
+    );
+  });
+
   it('없는 장소는 not-found 로 던진다', async () => {
     assert.equal(await errorCode(invoke('verifyLocation', reading({ placeId: 'nope' }))), 'functions/not-found');
   });

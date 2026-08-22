@@ -20,6 +20,12 @@ export const TICKET_SPEED_KMH = 300;
 /** 인증 통과 후 카메라를 열어둘 시간. 앱 목 구현이 쓰는 값과 맞췄다. */
 export const GRANT_TTL_MIN = 10;
 
+/**
+ * capturedAt 이 서버 시각에서 이만큼 이상 벌어지면 받지 않는다. 시각은 속도 계산의 분모라
+ * 과거 값을 넣으면 어떤 이동도 느려 보인다. 기기 시계가 몇 분 틀어지는 것은 흔하다.
+ */
+export const CLOCK_SKEW_MIN = 5;
+
 /** 같은 사용자·같은 장소 재발행 간격. */
 export const COOLDOWN_DAYS = 30;
 

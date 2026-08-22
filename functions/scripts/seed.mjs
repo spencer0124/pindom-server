@@ -38,45 +38,50 @@ const db = getFirestore();
 
 const placesOf = (artistId) => data.places.filter((p) => p.artistIds.includes(artistId));
 
-const batch = db.batch();
+/**
+ * 이미 있는 문서의 카운터는 건드리지 않는다. 두 번째 실행이 ticketCount 를 0 으로 되돌리면
+ * 발행 이력과 화면 숫자가 어긋나고, 그 어긋남은 다음 발행 전까지 드러나지도 않는다.
+ * 시드가 소유하는 것은 내용이고, 카운터는 함수가 소유한다.
+ */
+async function upsert(path, content, initialOnly) {
+  const ref = db.doc(path);
+  const exists = (await ref.get()).exists;
+  await ref.set(exists ? content : { ...content, ...initialOnly }, { merge: true });
+  return exists;
+}
+
+const kept = [];
 
 for (const artist of data.artists) {
   const { id, ...rest } = artist;
-  batch.set(db.doc(`artists/${id}`), {
-    ...rest,
-    placeCount: placesOf(id).length,
-    memberCount: 0,
-  });
+  const existed = await upsert(`artists/${id}`, { ...rest, placeCount: placesOf(id).length },
+    { memberCount: 0 });
+  if (existed) kept.push(`artists/${id}`);
 }
 
 for (const place of data.places) {
   const { id, lat, lng, ...rest } = place;
-  batch.set(db.doc(`places/${id}`), {
-    ...rest,
-    location: new GeoPoint(lat, lng),
-    ticketCount: 0,
-    verifyCount: 0,
-    photoCount: 0,
-    reviewCount: 0,
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  const existed = await upsert(`places/${id}`,
+    { ...rest, location: new GeoPoint(lat, lng) },
+    {
+      ticketCount: 0, verifyCount: 0, photoCount: 0, reviewCount: 0,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  if (existed) kept.push(`places/${id}`);
 }
 
 for (const course of data.courses) {
   const { id, ...rest } = course;
-  batch.set(db.doc(`courses/${id}`), { ...rest, placeCount: course.placeIds.length });
+  await upsert(`courses/${id}`, { ...rest, placeCount: course.placeIds.length }, {});
 }
 
 for (const raffle of data.raffles) {
   const { id, closesInHours, ...rest } = raffle;
-  batch.set(db.doc(`raffles/${id}`), {
-    ...rest,
-    closesAt: Timestamp.fromMillis(Date.now() + closesInHours * 60 * 60 * 1000),
-    entryCount: 0,
-  });
+  const existed = await upsert(`raffles/${id}`,
+    { ...rest, closesAt: Timestamp.fromMillis(Date.now() + closesInHours * 60 * 60 * 1000) },
+    { entryCount: 0 });
+  if (existed) kept.push(`raffles/${id}`);
 }
-
-await batch.commit();
 
 const counts = [
   ['artists', data.artists.length],
@@ -86,3 +91,4 @@ const counts = [
 ];
 console.log(`${projectId}${onEmulator ? ' (에뮬레이터)' : ''} 적재 완료`);
 for (const [name, n] of counts) console.log(`  ${name} ${n}`);
+if (kept.length) console.log(`  이미 있던 ${kept.length}건은 카운터를 그대로 뒀다`);
