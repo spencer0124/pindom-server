@@ -56,6 +56,9 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | 등급 구간 | `club10` 0–19 · `club20` 20–29 · `clubGo` 30+ | 발행 수 기준·전역. 프로토타입의 `TIER 10—19` 에서 구간 폭 10 |
 | 응모 차감 순서 | 오래된 티켓부터 | 계약서에 순서 규정 없음 |
 
+**앱 개발자는 [docs/2026-08-22-app-handoff.md](docs/2026-08-22-app-handoff.md) 부터 보면 된다** —
+배포 상태, 함수 3개의 사용법, 규칙이 요구하는 조건, 계약서와 달라진 부분이 한 장에 있다.
+
 설계 판단의 근거는 [docs/backend-contract-review.md](docs/backend-contract-review.md) 에 있다.
 
 ## 배포 상태
