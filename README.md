@@ -57,14 +57,24 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 
 설계 판단의 근거는 [docs/backend-contract-review.md](docs/backend-contract-review.md) 에 있다.
 
-## 배포 후 한 번 하는 설정
+## 배포 상태
 
-`verificationSessions` 의 TTL 정책은 `firebase.json` 으로 배포되지 않는다. 만료된 세션이
-영구히 남지 않도록 배포 후 한 번 설정한다.
+`pindom-1234` 에 규칙·인덱스·함수·시드가 올라가 있다. 함수 셋 다 `asia-northeast3`, 2세대,
+Node 22, callable.
+
+배포에 한 번씩 걸렸던 것들 — 같은 자리에서 다시 막히지 않도록 적어 둔다.
+
+| 증상 | 원인과 조치 |
+| --- | --- |
+| `iam.serviceaccounts.actAs denied ... -compute@developer` | 2세대 함수는 Cloud Run 위에서 돌고 실행 주체가 Compute Engine 기본 서비스 계정이다. 그 계정은 `compute.googleapis.com` 을 켜야 생긴다. 켜고 2~3분 뒤 재배포 |
+| `functions:artifacts:setpolicy` 가 저장소를 못 찾음 | 기본 리전이 `us-central1` 이다. `--location asia-northeast3` 를 붙인다 |
+| 시드에서 `Could not load the default credentials` | `firebase login` 은 CLI 토큰이라 Admin SDK 가 쓰지 못한다. `gcloud auth application-default login` 이 필요하다. 서비스 계정 키는 이 레포가 public 이라 쓰지 않는다 |
+
+TTL 정책은 `firebase.json` 으로 배포되지 않아 한 번 따로 설정한다.
 
 ```bash
 gcloud firestore fields ttls update expiresAt \
-  --collection-group=verificationSessions --enable-ttl
+  --collection-group=verificationSessions --enable-ttl --project=pindom-1234
 ```
 
 ## 진행 상황
@@ -73,8 +83,8 @@ gcloud firestore fields ttls update expiresAt \
 - [x] Phase 1 — 계약서 리뷰
 - [x] Phase 2 — 저장소 스캐폴드
 - [x] Phase 3 — 보안 규칙
-- [x] Phase 4 — Cloud Functions (작성·검증 완료, 배포는 Phase 5)
-- [ ] Phase 5 — 시드 데이터와 배포 (시드 스크립트 완료, 배포는 Blaze 요금제 확인 후)
+- [x] Phase 4 — Cloud Functions
+- [x] Phase 5 — 시드 데이터와 배포
 
 ## 보안
 
