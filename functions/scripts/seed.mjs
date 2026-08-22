@@ -20,11 +20,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const data = JSON.parse(readFileSync(join(here, 'seed-data.json'), 'utf8'));
 
 const args = process.argv.slice(2);
-const flag = (name) => {
-  const i = args.indexOf(`--${name}`);
-  return i === -1 ? undefined : args[i + 1];
-};
-const projectId = flag('project') ?? process.env.GCLOUD_PROJECT ?? 'pindom-seed-local';
+const projectId =
+  args[args.indexOf('--project') + 1] ?? process.env.GCLOUD_PROJECT ?? 'pindom-seed-local';
 const onEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
 // 실제 프로젝트에 쓰는 것은 되돌리기 어려운 동작이다. 에뮬레이터가 아니면 명시적 동의를 받는다.
@@ -50,13 +47,13 @@ async function upsert(path, content, initialOnly) {
   return exists;
 }
 
-const kept = [];
+let kept = 0;
 
 for (const artist of data.artists) {
   const { id, ...rest } = artist;
   const existed = await upsert(`artists/${id}`, { ...rest, placeCount: placesOf(id).length },
     { memberCount: 0 });
-  if (existed) kept.push(`artists/${id}`);
+  if (existed) kept += 1;
 }
 
 for (const place of data.places) {
@@ -67,7 +64,7 @@ for (const place of data.places) {
       ticketCount: 0, verifyCount: 0, photoCount: 0, reviewCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
-  if (existed) kept.push(`places/${id}`);
+  if (existed) kept += 1;
 }
 
 for (const course of data.courses) {
@@ -80,7 +77,7 @@ for (const raffle of data.raffles) {
   const existed = await upsert(`raffles/${id}`,
     { ...rest, closesAt: Timestamp.fromMillis(Date.now() + closesInHours * 60 * 60 * 1000) },
     { entryCount: 0 });
-  if (existed) kept.push(`raffles/${id}`);
+  if (existed) kept += 1;
 }
 
 const counts = [
@@ -91,4 +88,4 @@ const counts = [
 ];
 console.log(`${projectId}${onEmulator ? ' (에뮬레이터)' : ''} 적재 완료`);
 for (const [name, n] of counts) console.log(`  ${name} ${n}`);
-if (kept.length) console.log(`  이미 있던 ${kept.length}건은 카운터를 그대로 뒀다`);
+if (kept) console.log(`  이미 있던 ${kept}건은 카운터를 그대로 뒀다`);

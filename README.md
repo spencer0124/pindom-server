@@ -51,6 +51,7 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | Firestore 위치 | `asia-northeast3` (서울) | 생성 시 확정, 변경 불가 |
 | Functions 리전 | `asia-northeast3` | 앱은 `getFunctions(app, 'asia-northeast3')` 로 호출 |
 | 함수 개수 | 3개 (`verifyLocation`·`issueTicket`·`enterRaffle`) | 나머지는 규칙으로 처리 |
+| `maxInstances` | 10 | App Check 이 없고 함수 URL 은 공개다. 폭주가 그대로 청구서가 되는 것을 막는다 |
 | 그랜트 유효시간 | 10분 | 계약서에 값이 없어 앱 목 구현이 쓰던 값을 따랐다 |
 | 등급 구간 | `club10` 0–19 · `club20` 20–29 · `clubGo` 30+ | 발행 수 기준·전역. 프로토타입의 `TIER 10—19` 에서 구간 폭 10 |
 | 응모 차감 순서 | 오래된 티켓부터 | 계약서에 순서 규정 없음 |

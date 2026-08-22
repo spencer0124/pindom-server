@@ -82,5 +82,17 @@
         }
       ]
     }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "verificationSessions",
+      "fieldPath": "readings",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "posts",
+      "fieldPath": "imageUrls",
+      "indexes": []
+    }
   ]
 }

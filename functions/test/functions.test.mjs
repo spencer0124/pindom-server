@@ -30,8 +30,6 @@ const THERE = { lat: HERE.lat + 0.00135, lng: HERE.lng };
 
 let seedEnv;
 let call;
-let db;
-let storage;
 let uid;
 
 const invoke = async (name, data) => (await httpsCallable(call, name)(data)).data;
@@ -59,8 +57,8 @@ before(async () => {
   const app = initializeApp({
     apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com`,
   });
-  db = getFirestore(app);
-  storage = getStorage(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectStorageEmulator(storage, '127.0.0.1', 9199);
   connectAuthEmulator(getAuth(app), 'http://127.0.0.1:9099', { disableWarnings: true });

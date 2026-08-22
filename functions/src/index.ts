@@ -27,7 +27,9 @@ import {
 // 리전은 한 번 정하면 함수를 지우고 다시 배포해야만 바뀐다.
 // 앱은 getFunctions(app, 'asia-northeast3') 로 호출한다 —
 // 기본값 us-central1 로 호출하면 not-found 가 난다.
-setGlobalOptions({ region: 'asia-northeast3' });
+// 인스턴스 상한을 둔다. App Check 이 없고 함수 URL 은 공개라, 스크립트로 때리면 인스턴스가
+// 무한히 늘고 그대로 청구서가 된다. 초기 사용자 규모에는 10 이면 넉넉하다.
+setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 });
 
 initializeApp();
 const db = getFirestore();
@@ -104,8 +106,7 @@ export const verifyLocation = onCall(async (req) => {
   const center = place.location as GeoPoint;
   const radius = typeof place.radiusMeters === 'number' ? place.radiusMeters : DEFAULT_RADIUS_M;
 
-  const raw = distanceMeters(geo(center), { lat, lng });
-  const distance = effectiveDistance(raw, accuracy);
+  const distance = effectiveDistance(distanceMeters(geo(center), { lat, lng }), accuracy);
 
   const sessionRef = sessionId
     ? db.doc(`verificationSessions/${sessionId}`)
@@ -158,7 +159,10 @@ export const verifyLocation = onCall(async (req) => {
     }
   }
 
-  if (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt)) {
+  // 직전 티켓 대비 검사는 "여기 도착했는가" 를 보는 것이라 세션의 첫 측정에서만 의미가 있다.
+  // 이후 측정은 바로 위 세션 내부 검사가 덮는다. 인증 화면은 같은 세션으로 여러 번 호출하므로
+  // 매번 돌리면 핑마다 문서를 둘씩 더 읽는다.
+  if (readings.length === 0 && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt))) {
     return reject('implausible_speed', true);
   }
 
