@@ -71,7 +71,9 @@ Node 22, callable.
 | `functions:artifacts:setpolicy` 가 저장소를 못 찾음 | 기본 리전이 `us-central1` 이다. `--location asia-northeast3` 를 붙인다 |
 | 시드에서 `Could not load the default credentials` | `firebase login` 은 CLI 토큰이라 Admin SDK 가 쓰지 못한다. `gcloud auth application-default login` 이 필요하다. 서비스 계정 키는 이 레포가 public 이라 쓰지 않는다 |
 
-TTL 정책은 `firebase.json` 으로 배포되지 않아 한 번 따로 설정한다.
+TTL 정책은 처음 한 번 `gcloud` 로 켜고, 그 뒤로는 `firestore.indexes.json` 의
+`fieldOverrides` 에 `"ttl": true` 로 선언해 둔다. 선언하지 않으면 인덱스 배포가 "파일에 없는
+override 가 있다" 고 경고하고, `--force` 를 붙인 순간 **TTL 이 삭제된다**.
 
 ```bash
 gcloud firestore fields ttls update expiresAt \

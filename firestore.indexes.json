@@ -86,6 +86,21 @@
   "fieldOverrides": [
     {
       "collectionGroup": "verificationSessions",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "verificationSessions",
       "fieldPath": "readings",
       "indexes": []
     },
