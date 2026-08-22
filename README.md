@@ -56,10 +56,16 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | 등급 구간 | `club10` 0–19 · `club20` 20–29 · `clubGo` 30+ | 발행 수 기준·전역. 프로토타입의 `TIER 10—19` 에서 구간 폭 10 |
 | 응모 차감 순서 | 오래된 티켓부터 | 계약서에 순서 규정 없음 |
 
-**앱 개발자는 [docs/2026-08-22-app-handoff.md](docs/2026-08-22-app-handoff.md) 부터 보면 된다** —
-배포 상태, 함수 3개의 사용법, 규칙이 요구하는 조건, 계약서와 달라진 부분이 한 장에 있다.
+## 문서
 
-설계 판단의 근거는 [docs/backend-contract-review.md](docs/backend-contract-review.md) 에 있다.
+| 문서 | 무엇 | 누가 |
+| --- | --- | --- |
+| [app-handoff](docs/2026-08-22-app-handoff.md) | 배포 상태, 함수 3개 사용법, 규칙이 요구하는 조건, 계약서와 달라진 부분 | **앱 개발자는 여기부터** |
+| [worklog](docs/2026-08-22-worklog.md) | 계약서 리뷰 이후 작업 기록 — 판단·발견한 결함·검증 방법을 커밋 단위로 | 맥락이 필요할 때, AI 에이전트 포함 |
+| [backend-contract-review](docs/backend-contract-review.md) | 계약서 리뷰 원문과 회신 | "왜 그렇게 했나" 를 볼 때 |
+
+필드 이름의 최종 심판은 앱 레포의 `docs/reference/backend-contract.md` 다. 그 문서와 이
+저장소가 갈린 지점은 위 두 문서에 표로 정리돼 있다.
 
 ## 배포 상태
 
