@@ -19,3 +19,9 @@ serviceAccountKey.json
 
 # 빌드 산출물
 functions/lib/
+
+# 외부 API 문서 사본 — 참고용, 저장소 소유 아님
+docs/api_docs/
+
+# 에이전트 참고용 — 저장소 산출물 아님
+CLAUDE.md
