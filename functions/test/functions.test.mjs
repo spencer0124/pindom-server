@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { initializeApp } from 'firebase/app';
+import { deleteApp, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import {
   Timestamp, connectFirestoreEmulator, doc, getDoc, getFirestore, setDoc,
@@ -29,6 +29,7 @@ const HERE = { lat: 37.8947, lng: 128.8305 };
 const THERE = { lat: HERE.lat + 0.00135, lng: HERE.lng };
 
 let seedEnv;
+let clientApp;
 let call;
 let uid;
 
@@ -62,6 +63,7 @@ before(async () => {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectStorageEmulator(storage, '127.0.0.1', 9199);
   connectAuthEmulator(getAuth(app), 'http://127.0.0.1:9099', { disableWarnings: true });
+  clientApp = app;
   call = getFunctions(app, 'asia-northeast3');
   connectFunctionsEmulator(call, '127.0.0.1', 5001);
 
@@ -102,7 +104,8 @@ before(async () => {
   });
 });
 
-after(async () => { await seedEnv.cleanup(); });
+// 클라이언트 앱을 닫지 않으면 열린 연결이 남아 node --test 가 영영 종료되지 않는다.
+after(async () => { await seedEnv.cleanup(); await deleteApp(clientApp); });
 
 describe('verifyLocation', () => {
   it('반경 안이면 통과하고 그랜트를 준다', async () => {
@@ -250,3 +253,37 @@ async function seedRead(path) {
   });
   return data;
 }
+
+// 도착 검사(직전 티켓 대비 300km/h)는 세션당 한 번만 돈다. 그 "한 번" 을 거부 응답으로
+// 소모시킬 수 있으면 게이트가 통째로 무력해진다. 티켓이 있어야 성립해서 맨 뒤에 둔다.
+describe('도착 검사', () => {
+  const FAR = 'seoul-far';
+  // 주문진에서 약 160km. 1분 전에 여기서 티켓을 받았다면 시속 9,000km 다.
+  const SEOUL = { lat: 37.5665, lng: 126.978 };
+
+  before(async () => {
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      const seed = ctx.firestore();
+      await setDoc(doc(seed, 'places', FAR), {
+        name: { ko: '서울' },
+        location: { latitude: SEOUL.lat, longitude: SEOUL.lng },
+        radiusMeters: 50,
+      });
+      await setDoc(doc(seed, 'tickets', 'far-ticket'), {
+        userId: uid, placeId: FAR, placeName: '서울', photoUrl: 'x',
+        serial: 'PD-TEST-TEST-TEST', visibility: 'private', spent: false,
+        issuedAt: Timestamp.fromMillis(Date.now() - 60_000),
+      });
+    });
+  });
+
+  it('첫 핑이 반경 밖이어도 도착 검사가 먼저 돈다', async () => {
+    // 반경 밖이면서 동시에 불가능한 속도인 좌표. 예전에는 out_of_radius 로 먼저 리턴하면서
+    // 이 거부가 readings 에 쌓였고, 그 뒤로는 "첫 측정" 조건이 영영 거짓이라
+    // 300km/h 게이트가 세션 내내 돌지 않았다.
+    const res = await invoke('verifyLocation', reading({ lat: 38.5, lng: 128.5 }));
+    assert.equal(res.verified, false);
+    assert.equal(res.reason, 'implausible_speed');
+  });
+});
+
