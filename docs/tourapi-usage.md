@@ -155,8 +155,8 @@ GET https://apis.data.go.kr/B551011/KorService2/detailCommon2
 
 | 응답 필드 | `places` 필드 | 처리 |
 | --- | --- | --- |
-| `title` | `name.ko` | |
-| `overview` | `description.ko` | **HTML 제거** — 본문에 `<br>` 등이 섞여 온다 |
+| `title` | `name.ko` | **비어 있을 때만.** 사람이 쓴 이름이 이긴다 — §4.4 |
+| `overview` | **`overview.ko`** | **HTML 제거** — 본문에 `<br>` 등이 섞여 온다. `description` 이 아니다 — §4.4 |
 | `addr1` (+ `addr2`) | `address` | `addr2` 가 있으면 공백으로 이어 붙인다 |
 | `mapx` | `location` 의 **경도** | WGS84 |
 | `mapy` | `location` 의 **위도** | WGS84 |
@@ -196,8 +196,8 @@ GET https://apis.data.go.kr/B551011/EngService2/detailCommon2
 
 | 응답 필드 | `places` 필드 | 처리 |
 | --- | --- | --- |
-| `title` | `name.en` | 꼬리의 한글 원제를 뗀다 — `N Seoul Tower (남산서울타워)` → `N Seoul Tower`. `[Tax Refund Shop]` 같은 영문 괄호는 정보라 남긴다 |
-| `overview` | `description.en` | 태그 제거 + 엔티티 복원 |
+| `title` | `name.en` | 비어 있을 때만. 꼬리의 한글 원제를 뗀다 — `N Seoul Tower (남산서울타워)` → `N Seoul Tower`. `[Tax Refund Shop]` 같은 영문 괄호는 정보라 남긴다 |
+| `overview` | **`overview.en`** | 태그 제거 + 엔티티 복원 |
 
 응답이 없거나 비면 **`name.en` · `description.en` 을 만들지 않는다.** 계약서의 absent 규칙대로
 키가 없으면 앱이 `ko` 로 폴백한다. 빈 문자열을 넣으면 화면이 빈칸으로 뜬다.
@@ -238,6 +238,8 @@ GET https://apis.data.go.kr/B551011/KorService2/detailIntro2
 | `workTitle` · `workKind` | 어떤 뮤비/드라마에 나왔는지. 공사에 없다 |
 | `radiusMeters` | 인증 반경. 장소마다 우리가 조정한다 |
 | `region` | `강원 강릉` 처럼 짧게 다듬은 표기 + 영문. `addr1` 과 용도가 다르다 |
+| `description` | **성격이 다른 글이다.** 공사 개요는 "그 관광지" 소개고, 우리 설명은 "자물쇠 벽 앞이 인증샷 포인트" 처럼 촬영하러 가는 사람에게 필요한 말이다. 공사 개요는 `overview` 로 따로 받아 화면의 **더 자세한 설명 보기**에 넣는다 |
+| `name` | 반만 지킨다 — 사람이 쓴 로케일은 그대로 두고 **빈 로케일만** 공사 값으로 채운다. 촬영 지점이 `N서울타워 전망대` 인데 공사 등록명은 `남산서울타워` 라, 우리 이름이 더 정확한 자리가 있다 |
 | `roman` | 라틴 캡션 |
 | 모든 카운터 | `ticketCount` · `verifyCount` · `photoCount` · `reviewCount` 는 함수 소유 |
 

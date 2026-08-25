@@ -113,11 +113,25 @@ describe('mergePlace', () => {
     assert.equal(next.workKind, 'mv');
   });
 
-  it('본문과 이용시간을 채우고 개요의 태그를 걷는다', () => {
-    const next = mergePlace(PLACE, { ko: KO, en: EN, intro: INTRO });
-    assert.equal(next.name.ko, '주문진 방파제');
+  it('공사 개요는 overview 로 가고 우리 설명은 그대로다', () => {
+    const ours = { ...PLACE, description: { ko: '자물쇠 벽 앞이 인증샷 포인트.' } };
+    const next = mergePlace(ours, { ko: KO, en: EN, intro: INTRO });
+    // 공사 개요는 "그 관광지" 소개고, description 은 촬영하러 가는 사람에게 필요한 말이다.
+    assert.deepEqual(next.description, ours.description);
+    assert.ok(next.overview.ko.startsWith('바다를 등지고'));
+    assert.ok(!next.overview.ko.includes('<br>'));
+    assert.equal(next.overview.en, 'The whole breakwater fits in one frame.');
+  });
+
+  it('이름은 빈 자리만 채우고 사람이 쓴 것은 지킨다', () => {
+    const named = { ...PLACE, name: { ko: 'N서울타워 전망대' } };
+    const next = mergePlace(named, { ko: KO, en: EN, intro: INTRO });
+    assert.equal(next.name.ko, 'N서울타워 전망대');
     assert.equal(next.name.en, 'Jumunjin Breakwater');
-    assert.ok(!next.description.ko.includes('<br>'));
+  });
+
+  it('주소와 이용시간을 채운다', () => {
+    const next = mergePlace(PLACE, { ko: KO, en: EN, intro: INTRO });
     assert.equal(next.address, '강원특별자치도 강릉시 주문진읍 해안로 1609 (주문진읍)');
     assert.deepEqual(next.openHours, { ko: '상시 개방' });
     assert.deepEqual(next.closedDays, { ko: '연중무휴' });
@@ -136,10 +150,10 @@ describe('mergePlace', () => {
     assert.equal(next.coverImageLicense, undefined);
   });
 
-  it('영문 응답이 없으면 name.en 을 만들지 않는다', () => {
+  it('영문 응답이 없으면 en 키를 만들지 않는다', () => {
     const next = mergePlace(PLACE, { ko: KO, en: null, intro: INTRO });
     assert.equal(next.name.en, undefined);
-    assert.equal(next.description.en, undefined);
+    assert.equal(next.overview?.en, undefined);
   });
 
   it('이용시간이 비면 필드를 만들지 않는다', () => {

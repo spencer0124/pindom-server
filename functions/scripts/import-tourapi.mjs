@@ -19,7 +19,11 @@ const BASE = 'https://apis.data.go.kr/B551011';
 const COMMON = { MobileOS: 'ETC', MobileApp: 'Pindom', _type: 'json' };
 
 // 공사가 주는 값으로 절대 덮지 않는다. 최애 매핑도 인증 반경도 공사에는 없는 우리 판단이다.
-const OURS = ['id', 'contentId', 'contentIdEn', 'artistIds', 'workTitle', 'workKind', 'radiusMeters', 'region', 'roman'];
+// description 이 여기 있는 이유는 성격이 달라서다. 공사의 개요는 "그 관광지" 소개이고,
+// 우리 설명은 "자물쇠 벽 앞이 인증샷 포인트" 처럼 촬영하러 가는 사람에게 필요한 말이다.
+// 공사 개요는 overview 로 따로 받아 더 자세한 설명 보기에 넣는다.
+const OURS = ['id', 'contentId', 'contentIdEn', 'artistIds', 'workTitle', 'workKind',
+  'radiusMeters', 'region', 'roman', 'description'];
 
 // 영문 개요는 &ldquo; &rsquo; 같은 타이포그래피 엔티티를 그대로 보낸다. 화면에 날문자가
 // 뜨는 자리라 여기서 되돌린다. Node 에 HTML 엔티티 디코더가 없어 쓰는 것만 적는다.
@@ -72,10 +76,16 @@ export function firstItem(json) {
  */
 export function mergePlace(place, { ko, en, intro }) {
   const next = { ...place };
+
+  // 이름은 사람이 쓴 것이 있으면 지키고 빈 자리만 채운다. 촬영 지점이 "N서울타워 전망대" 인데
+  // 공사 등록명은 "남산서울타워" 라, 우리가 고른 이름이 더 정확한 자리가 있다.
+  const fillMissing = (map, locale, value) =>
+    value && !map?.[locale] ? { ...map, [locale]: value } : map;
+
   if (ko) {
-    if (ko.title) next.name = { ...next.name, ko: ko.title };
+    next.name = fillMissing(next.name, 'ko', ko.title);
     const overview = stripHtml(ko.overview);
-    if (overview) next.description = { ...next.description, ko: overview };
+    if (overview) next.overview = { ...next.overview, ko: overview };
 
     const address = [ko.addr1, ko.addr2].filter(Boolean).join(' ').trim();
     if (address) next.address = address;
@@ -97,10 +107,9 @@ export function mergePlace(place, { ko, en, intro }) {
 
   if (en) {
     // 영문이 비면 키를 만들지 않는다. LocalizedString 은 키가 없어야 앱이 ko 로 폴백한다.
-    const title = englishTitle(en.title);
-    if (title) next.name = { ...next.name, en: title };
+    next.name = fillMissing(next.name, 'en', englishTitle(en.title));
     const overview = stripHtml(en.overview);
-    if (overview) next.description = { ...next.description, en: overview };
+    if (overview) next.overview = { ...next.overview, en: overview };
   }
 
   if (intro) {
