@@ -114,6 +114,12 @@ service cloud.firestore {
                                           'followedArtistIds', 'profileVisibility', 'locale']);
 
       allow delete: if false;
+
+      // 내 지도 — 챗봇이 추천한 곳 중 본인이 담아둔 것. 값이 걸린 데이터가 아니라
+      // 북마크라서 함수를 거치지 않는다. places 와 달리 인증 기준 좌표가 아니다.
+      match /savedPlaces/{savedPlaceId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
     // --- tickets — issueTicket 전용, 공개 여부만 본인이 토글 --------------------

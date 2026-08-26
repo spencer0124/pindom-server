@@ -4,6 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, GeoPoint, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 
 import {
@@ -20,9 +21,29 @@ import {
   effectiveDistance,
   isImplausibleJump,
   mintSerial,
+  normalizeBoard,
   tierFor,
   type LatLng,
 } from './logic';
+import {
+  DAILY_CALL_LIMIT,
+  KAKAO_CATEGORIES,
+  MAX_MESSAGE_CHARS,
+  MAX_TOOL_ROUNDS,
+  SEARCH_TOOL,
+  SYSTEM_PROMPT,
+  type Suggestion,
+  dayKeyKst,
+  dedupe,
+  nextCallCount,
+  sanitizeHistory,
+  toSuggestion,
+  waypoints,
+} from './assistant';
+
+// 키는 배포된 함수가 Secret Manager 에서 읽는다. .env.local 은 로컬 스크립트용이다.
+const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
+const KAKAO_REST_API_KEY = defineSecret('KAKAO_REST_API_KEY');
 
 // 리전은 한 번 정하면 함수를 지우고 다시 배포해야만 바뀐다.
 // 앱은 getFunctions(app, 'asia-northeast3') 로 호출한다 —
@@ -448,3 +469,161 @@ export const enterRaffle = onCall(async (req) => {
     return { entryId: entryRef.id, ticketBalance: balance, ticketIds, ticketsSpent: cost };
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// askAssistant — Pindom AI
+//
+// 다른 함수들과 성격이 다르다. 남이 때리면 Firestore 읽기가 아니라 OpenAI 청구서가 나가고,
+// 청구서에는 멈추는 쿼터가 없다. App Check 이 없는 동안 사용자당 일일 상한이 유일한 방어다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
+  tool_call_id?: string;
+}
+
+/** 카카오 로컬. 429 는 던지지 않는다 — 추천이 비는 것이지 대화가 실패한 것은 아니다. */
+async function searchNearby(
+  args: Data,
+  key: string,
+  origin?: LatLng,
+): Promise<{ places: Suggestion[]; note?: string }> {
+  const lat = Number(args.lat);
+  const lng = Number(args.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { places: [], note: '좌표가 없다' };
+
+  const radius = Math.min(Math.max(Number(args.radiusMeters) || 1_000, 100), 20_000);
+  const category = KAKAO_CATEGORIES[args.category as keyof typeof KAKAO_CATEGORIES];
+  const keyword = typeof args.keyword === 'string' ? args.keyword.slice(0, 50) : '';
+
+  const url = new URL(
+    keyword
+      ? 'https://dapi.kakao.com/v2/local/search/keyword.json'
+      : 'https://dapi.kakao.com/v2/local/search/category.json',
+  );
+  url.searchParams.set('x', String(lng));
+  url.searchParams.set('y', String(lat));
+  url.searchParams.set('radius', String(Math.round(radius)));
+  url.searchParams.set('sort', 'distance');
+  url.searchParams.set('size', '5');
+  if (keyword) url.searchParams.set('query', keyword);
+  if (category) url.searchParams.set('category_group_code', category);
+
+  const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
+  if (res.status === 429) return { places: [], note: '오늘 검색 한도를 다 썼다' };
+  if (!res.ok) return { places: [], note: '검색에 실패했다' };
+
+  const body = (await res.json()) as { documents?: Data[] };
+  const places = (body.documents ?? [])
+    .map((d) => toSuggestion(d, origin))
+    .filter((s): s is Suggestion => s !== null);
+  return { places };
+}
+
+async function callOpenAI(messages: ChatMessage[], key: string): Promise<Data> {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages,
+      tools: [SEARCH_TOOL],
+      max_tokens: 600,
+    }),
+  });
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 200);
+    throw new HttpsError('unavailable', `모델 호출 실패 (${res.status}): ${detail}`);
+  }
+  const body = (await res.json()) as { choices?: Array<{ message?: Data }> };
+  const message = body.choices?.[0]?.message;
+  if (!message) throw new HttpsError('unavailable', '모델이 빈 응답을 보냈다');
+  return message;
+}
+
+export const askAssistant = onCall(
+  { secrets: [OPENAI_API_KEY, KAKAO_REST_API_KEY], timeoutSeconds: 60 },
+  async (req) => {
+    const uid = requireUid(req);
+    const data = (req.data ?? {}) as Data;
+    const message = str(data, 'message').slice(0, MAX_MESSAGE_CHARS);
+
+    // 상한 먼저. 모델을 부른 뒤에 세면 초과분이 이미 결제된 뒤다.
+    const userRef = db.doc(`users/${uid}`);
+    const today = dayKeyKst(new Date());
+    const user = (await userRef.get()).data() ?? {};
+    const count = nextCallCount(user.assistantCallDay, user.assistantCallCount, today);
+    if (count > DAILY_CALL_LIMIT) {
+      throw new HttpsError('resource-exhausted', '오늘 대화 한도를 다 썼다', {
+        errorCode: 'assistant_daily_limit',
+        limit: DAILY_CALL_LIMIT,
+      });
+    }
+    await userRef.set({ assistantCallDay: today, assistantCallCount: count }, { merge: true });
+
+    // 어디를 기준으로 찾을지. 좌표는 촬영지 문서에서 오고 클라이언트가 보낸 값을 쓰지 않는다.
+    const near =
+      typeof data.near === 'object' && data.near !== null
+        ? ({ lat: num(data.near as Data, 'lat'), lng: num(data.near as Data, 'lng') } as LatLng)
+        : undefined;
+
+    let context = '';
+    if (typeof data.towardPlaceId === 'string' && data.towardPlaceId !== '') {
+      const snap = await db.doc(`places/${data.towardPlaceId}`).get();
+      const place = snap.data();
+      if (!place) throw new HttpsError('not-found', '없는 장소다');
+      const target = geo(place.location as GeoPoint);
+      const name = (place.name as Data | undefined)?.ko ?? '촬영지';
+      context = `사용자는 "${name}" (${target.lat}, ${target.lng}) 로 가는 중이다.`;
+      if (near) {
+        const stops = waypoints(near, target)
+          .map((w) => `(${w.lat.toFixed(4)}, ${w.lng.toFixed(4)})`)
+          .join(', ');
+        context += ` 출발지는 (${near.lat}, ${near.lng}) 이고, 가는 길의 중간 지점은 ${stops} 이다.`;
+        context += ' 들를 곳을 물으면 중간 지점들과 목적지 주변을 각각 찾아본다.';
+      }
+    } else if (near) {
+      context = `사용자의 현재 위치는 (${near.lat}, ${near.lng}) 이다.`;
+    }
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: context ? `${SYSTEM_PROMPT}\n\n${context}` : SYSTEM_PROMPT },
+      ...sanitizeHistory(data.history).map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: message },
+    ];
+
+    const suggestions: Suggestion[] = [];
+    let reply = '';
+
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+      const answer = await callOpenAI(messages, OPENAI_API_KEY.value());
+      const calls = (answer.tool_calls ?? []) as ChatMessage['tool_calls'];
+
+      if (!calls || calls.length === 0 || round === MAX_TOOL_ROUNDS) {
+        reply = typeof answer.content === 'string' ? answer.content : '';
+        break;
+      }
+
+      messages.push(answer as unknown as ChatMessage);
+      for (const call of calls) {
+        let args: Data = {};
+        try {
+          args = JSON.parse(call.function.arguments) as Data;
+        } catch {
+          args = {};
+        }
+        const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
+        suggestions.push(...found.places);
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify(found.note ? { note: found.note } : { places: found.places }),
+        });
+      }
+    }
+
+    return { reply, suggestions: dedupe(suggestions).slice(0, 12) };
+  },
+);
