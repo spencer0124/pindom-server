@@ -113,10 +113,10 @@ interface Reading {
  * GPS 판정. 거부는 throw 가 아니라 verified: false 다 — 66m 떨어져 있는 것은 정상적인
  * 결과이지 고장이 아니고, 인증 실패 화면이 거리·반경·정확도를 표로 렌더링한다.
  *
- * minInstances: 1 — 사용자가 촬영지 앞에 서서 결과를 기다리는 화면이다. 콜드 스타트로
- * 몇 초를 태우기에 가장 나쁜 자리라 웜 인스턴스 하나를 상시로 둔다.
+ * minInstances 는 일부러 안 둔다. 상시 과금이라 콜드 스타트가 문제되는 건 공모전 데모
+ * 순간뿐이다 — 데모 직전에만 켠다.
  */
-export const verifyLocation = onCall({ minInstances: 1 }, async (req) => {
+export const verifyLocation = onCall(async (req) => {
   const uid = requireUid(req);
   const data = (req.data ?? {}) as Data;
 
