@@ -777,6 +777,58 @@ Storage 에서 `read` 는 `get` 과 `list` 를 함께 뜻한다. 열어두면 �
 다운로드 토큰이 메타데이터에 붙으므로, 함수는 그 토큰으로 URL 을 만든다. 토큰이 없으면 하나
 만들어 붙인다 — 서명 URL 은 서비스 계정 키를 요구하고, 버킷을 공개로 여는 것은 더 나쁘다.
 
+## 11. 게시판 컬렉션 — 계약서 변경 요청 (08-26)
+
+계약서 `posts.boardId` 는 "`artists/{artistId}` 의 게시판" 으로 정의돼 있다. **자유게시판이
+생기면서 이 정의가 더는 맞지 않는다.** 아이돌 게시판은 그대로 두고, 게시판 목록 자체를
+`boards` 컬렉션으로 분리했다.
+
+### `boards/{boardId}`
+
+| 필드 | 타입 | 비고 |
+| --- | --- | --- |
+| `kind` | `'free' \| 'artist'` | |
+| `name` | `LocalizedString` | ko·en 둘 다 필수 |
+| `artistId` | `string?` | `kind === 'artist'` 일 때만. **값은 항상 문서 id 와 같다** |
+| `description` | `LocalizedString?` | 게시판 헤더의 한 줄 |
+| `accentColor` | `string?` | `#RRGGBB` |
+| `order` | `number` | 작을수록 위. 시드는 자유게시판 0, 아이돌 10·20·30 |
+| `archived` | `boolean` | 목록에서 내린 게시판. **삭제는 없다** |
+| `createdAt` | `Timestamp` | |
+
+**아이돌 게시판의 문서 id 는 artistId 다.** 계약서의 `posts.boardId` 정의를 그대로 유지하려고
+그렇게 잡았다 — 아이돌 게시판에 한해서는 `boardId === artistId` 가 여전히 참이고, 앱의 기존
+쿼리는 한 줄도 바뀌지 않는다. 달라진 것은 **그 값이 아닌 `boardId` 가 하나 존재한다**는 것뿐이다.
+
+| 요청 | 내용 |
+| --- | --- |
+| 1 | `posts.boardId` 설명을 "`boards/{boardId}`. 아이돌 게시판이면 그 값이 곧 `artistId` 다" 로 |
+| 2 | `boards` 컬렉션을 스키마에 추가 |
+
+**자유게시판은 고정이다.** 문서 id 는 `free` 로 박혀 있고, 그 id 는 자유게시판 전용이며,
+`archived: true` 로 만들 수 없다 — 함수가 거부한다. 앱의 기본 탭이 사라지는 상태를 만들 수
+없게 하기 위해서다.
+
+**앱이 할 일:** 게시판 목록을 `boards` 에서 읽고 `where('archived', '==', false).orderBy('order')`
+로 정렬한다. 인덱스는 배포돼 있다. `archived` 를 거르지 않으면 내려둔 게시판이 계속 보인다.
+
+**규칙:** `boards` 는 로그인하면 읽기, 쓰기는 `write: false` 다. `posts` 생성 규칙에 게시판
+존재 확인(`exists(/boards/$(boardId))`)이 붙었다 — 없는 게시판에 쓴 글은 어느 피드 쿼리에도
+잡히지 않으면서 컬렉션에는 남는다. 생성 한 번에 읽기 한 번이 늘어난다.
+
+### 관리 도구
+
+[Proposal — a small admin web page](https://github.com/spencer0124/pindom/blob/main/docs/reference/backend-contract.md#proposal--a-small-admin-web-page-for-촬영지) 에서 합의를 기다리던 관리 페이지를,
+**촬영지가 아니라 게시판부터** 열었다. 게시판은 사람이 손으로 추가하는 것 외에 다른 경로가
+없고, 아이돌이 늘 때마다 시드를 고쳐 배포하는 것은 앱 개발자가 할 수 있는 일이 아니다.
+
+제안에 적힌 모양 그대로다 — Firebase Hosting 위의 정적 HTML 한 장, 프레임워크도 빌드 단계도
+없고, 앱에는 아무 화면도 생기지 않는다. 방어선은 `admin` 커스텀 클레임을 확인하는 콜러블
+(`saveBoard`) 이고, 페이지는 그 콜러블을 부르는 껍데기다. **앱이 할 일은 없다.**
+
+촬영지 탭은 아직 없다. 지도에서 핀을 찍는 부분이 남아 있고, 트리거(주 단위 추가·다른 사람의
+추가)는 그대로 유효하다.
+
 ## 남은 것
 
 앱 쪽 회신이 없어도 Phase 4 를 진행할 수 있다. 위 판단 중 이견이 있는 항목만 알려주면 된다.

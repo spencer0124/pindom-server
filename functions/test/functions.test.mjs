@@ -287,3 +287,18 @@ describe('도착 검사', () => {
   });
 });
 
+
+// saveBoard 의 방어선은 admin 커스텀 클레임 하나다. 입력 검증은 normalizeBoard 가 맡고
+// logic.test.mjs 가 경계를 찍는다. 여기서 볼 것은 클레임 없는 계정이 막히는가뿐이다.
+describe('saveBoard', () => {
+  it('admin 클레임이 없으면 permission-denied', async () => {
+    const code = await errorCode(
+      invoke('saveBoard', {
+        boardId: 'artist-lumina',
+        kind: 'artist',
+        name: { ko: '루미나', en: 'Lumina' },
+      }),
+    );
+    assert.equal(code, 'functions/permission-denied');
+  });
+});

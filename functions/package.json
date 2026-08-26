@@ -10,7 +10,8 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "seed": "node scripts/seed.mjs",
-    "import-tourapi": "node --env-file-if-exists=../.env.local scripts/import-tourapi.mjs"
+    "import-tourapi": "node --env-file-if-exists=../.env.local scripts/import-tourapi.mjs",
+    "grant-admin": "node scripts/grant-admin.mjs"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",

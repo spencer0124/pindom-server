@@ -14,6 +14,7 @@ PINDOM의 Firebase 백엔드. Firestore 스키마, 보안 규칙, Cloud Function
 | `firestore.indexes.json` | 복합 인덱스 정의 |
 | `storage.rules` | Cloud Storage 보안 규칙 |
 | `functions/` | Cloud Functions (TypeScript) |
+| `admin/` | 관리 도구 — Hosting 에 올라가는 정적 HTML 한 장 |
 | `docs/` | 계약서 리뷰 등 설계 기록 |
 
 ## 사전 준비
@@ -37,12 +38,15 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | `npm --prefix functions run build` | 함수 TypeScript 컴파일 |
 | `firebase deploy --only firestore:rules` | Firestore 규칙만 배포 |
 | `firebase deploy --only storage` | Storage 규칙만 배포 |
+| `firebase deploy --only hosting` | 관리 도구만 배포 |
 | `node --test functions/test/logic.test.mjs functions/test/import-tourapi.test.mjs` | 순수 로직 테스트 (에뮬레이터 불필요) |
 | `firebase emulators:exec --only auth,firestore,storage,functions "node --test functions/test/*.test.mjs"` | 전체 테스트. **레포 루트에서** 돌린다 — `rules.test.mjs` 가 `firestore.rules` 를 cwd 기준으로 읽는다 |
 | `npm --prefix functions run import-tourapi -- --dry-run` | TourAPI 에서 촬영지 정보를 받아 `seed-data.json` 을 채운다. 키는 `.env.local` |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
 | `npm --prefix functions run seed` | 시드 데이터 적재 (에뮬레이터). 실제 프로젝트는 `-- --project <id> --yes` |
+| `npm --prefix functions run grant-admin -- --email <메일>` | 관리자 클레임 부여. 실제 프로젝트는 `--project <id> --yes`, 회수는 `--revoke` |
+| `firebase emulators:start` | 관리 도구를 로컬에서 띄운다 — <http://127.0.0.1:5055> |
 
 ## 결정 사항
 
@@ -51,6 +55,8 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | Firestore 위치 | `asia-northeast3` (서울) | 생성 시 확정, 변경 불가 |
 | Functions 리전 | `asia-northeast3` | 앱은 `getFunctions(app, 'asia-northeast3')` 로 호출 |
 | 함수 개수 | 3개 (`verifyLocation`·`issueTicket`·`enterRaffle`) | 나머지는 규칙으로 처리 |
+| 게시판 문서 id | 아이돌 게시판은 `artistId`, 자유게시판은 `free` | 계약서의 `posts.boardId` = `artistId` 를 아이돌 게시판에 한해 그대로 유지한다 |
+| 게시판 삭제 | 없다. `archived` 로 내린다 | 글이 `boardId` 로 게시판을 가리킨다. 지우면 그 글들이 없는 게시판에 매달린다 |
 | `maxInstances` | 10 | App Check 이 없고 함수 URL 은 공개다. 폭주가 그대로 청구서가 되는 것을 막는다 |
 | 그랜트 유효시간 | 10분 | 계약서에 값이 없어 앱 목 구현이 쓰던 값을 따랐다 |
 | 등급 구간 | `club10` 0–19 · `club20` 20–29 · `clubGo` 30+ | 발행 수 기준·전역. 프로토타입의 `TIER 10—19` 에서 구간 폭 10 |
@@ -99,6 +105,28 @@ gcloud firestore fields ttls update expiresAt \
 - [x] Phase 4 — Cloud Functions
 - [x] Phase 5 — 시드 데이터와 배포
 - [x] Phase 6 — TourAPI 적재 경로 ([tourapi-usage](docs/tourapi-usage.md))
+
+## 관리 도구
+
+`admin/index.html` 한 장이 전부다. 프레임워크도 빌드 단계도 없고, 프로젝트 설정은 Hosting 이
+내려주는 `/__/firebase/init.json` 에서 읽는다 — 그래서 페이지에 키가 박혀 있지 않고, 프로젝트를
+바꿔 배포해도 고칠 것이 없다. **Hosting 을 거치지 않고 파일을 직접 열면 동작하지 않는다.**
+
+지금 할 수 있는 것은 게시판 추가·수정이다. 촬영지 탭은 아직 없다.
+
+처음 한 번:
+
+1. Firebase 콘솔 · Authentication 에서 **Google 로그인을 켠다**. 페이지는 Google 팝업만 쓴다
+2. `npm --prefix functions run grant-admin -- --email <메일> --project pindom-1234 --yes`
+3. `firebase deploy --only hosting,functions`
+
+클레임은 ID 토큰에 실린다. 이미 로그인해 있던 계정은 토큰이 갱신될 때까지 예전 클레임을 들고
+있어서, 페이지는 로그인할 때마다 `getIdTokenResult(true)` 로 강제 갱신한다.
+
+로컬은 `firebase emulators:start` 후 <http://127.0.0.1:5055>. (Hosting 에뮬레이터의 기본 포트
+5000 은 macOS 의 AirPlay 수신 대기가 이미 쓰고 있어 비켜 뒀다.) 에뮬레이터의 Auth·Firestore·
+Functions 에 자동으로 붙고, 클레임은 `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` 를 붙여
+같은 스크립트로 준다.
 
 ## 보안
 

@@ -16,6 +16,7 @@ import {
   impliedSpeedKmh,
   isImplausibleJump,
   mintSerial,
+  normalizeBoard,
   tierFor,
 } from '../lib/logic.js';
 
@@ -96,5 +97,40 @@ describe('mintSerial', () => {
 describe('상수', () => {
   it('정확도 게이트는 65m — 도심 안드로이드 실측을 흡수하는 값', () => {
     assert.equal(ACCURACY_GATE_M, 65);
+  });
+});
+
+describe('normalizeBoard', () => {
+  const artist = { boardId: 'artist-lumina', kind: 'artist', name: { ko: '루미나', en: 'Lumina' } };
+
+  it('아이돌 게시판은 artistId 가 문서 id 와 같고 기본값이 채워진다', () => {
+    const { boardId, doc } = normalizeBoard(artist);
+    assert.equal(boardId, 'artist-lumina');
+    assert.equal(doc.artistId, 'artist-lumina');
+    assert.equal(doc.order, 0);
+    assert.equal(doc.archived, false);
+  });
+
+  it('자유게시판은 id 가 free 일 때만, free 는 자유게시판일 때만', () => {
+    assert.throws(() => normalizeBoard({ ...artist, kind: 'free' }));
+    assert.throws(() => normalizeBoard({ ...artist, boardId: 'free' }));
+    assert.doesNotThrow(() => normalizeBoard({ ...artist, boardId: 'free', kind: 'free' }));
+  });
+
+  it('자유게시판은 보관할 수 없다 — 앱의 기본 탭이 사라진다', () => {
+    assert.throws(() => normalizeBoard({ boardId: 'free', kind: 'free', name: artist.name, archived: true }));
+  });
+
+  it('이름은 ko·en 이 둘 다 있어야 하고, 설명은 있으면 둘 다여야 한다', () => {
+    assert.throws(() => normalizeBoard({ ...artist, name: { ko: '루미나' } }));
+    assert.throws(() => normalizeBoard({ ...artist, name: { ko: ' ', en: 'Lumina' } }));
+    assert.throws(() => normalizeBoard({ ...artist, description: { ko: '설명' } }));
+    assert.equal(normalizeBoard(artist).doc.description, undefined);
+  });
+
+  it('문서 id 와 강조색은 형식을 본다', () => {
+    assert.throws(() => normalizeBoard({ ...artist, boardId: 'a/b' }));
+    assert.throws(() => normalizeBoard({ ...artist, accentColor: 'green' }));
+    assert.equal(normalizeBoard({ ...artist, accentColor: '#58CF04' }).doc.accentColor, '#58CF04');
   });
 });

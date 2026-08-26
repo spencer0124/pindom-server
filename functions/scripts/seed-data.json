@@ -30,6 +30,21 @@
       "initial": "NP"
     }
   ],
+  "boards": [
+    {
+      "id": "free",
+      "kind": "free",
+      "name": {
+        "ko": "자유게시판",
+        "en": "Free Board"
+      },
+      "description": {
+        "ko": "최애를 가리지 않는 이야기",
+        "en": "Anything, whoever you stan"
+      },
+      "order": 0
+    }
+  ],
   "places": [
     {
       "id": "place-jumunjin",

@@ -121,3 +121,99 @@ export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{1,64}$/;
 export function cooldownEndsAt(lastIssuedAt: Date): Date {
   return new Date(lastIssuedAt.getTime() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 게시판
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 자유게시판의 문서 id. 아이돌 게시판은 id 가 artistId 라 (계약서의
+ * `posts.boardId` = `artists/{artistId}` 를 그대로 유지한다) 아티스트가 아닌 게시판은
+ * 이 하나뿐이고, 없어지면 앱의 기본 탭이 사라진다 — 고정 id 로 박고 삭제·보관을 막는다.
+ */
+export const FREE_BOARD_ID = 'free';
+
+export type BoardKind = 'free' | 'artist';
+
+export interface BoardInput {
+  boardId?: unknown;
+  kind?: unknown;
+  name?: unknown;
+  description?: unknown;
+  accentColor?: unknown;
+  order?: unknown;
+  archived?: unknown;
+}
+
+export interface BoardDoc {
+  kind: BoardKind;
+  name: { ko: string; en: string };
+  order: number;
+  archived: boolean;
+  artistId?: string;
+  description?: { ko: string; en: string };
+  accentColor?: string;
+}
+
+const BOARD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
+function localized(value: unknown, field: string, required: boolean) {
+  if (value === undefined) {
+    if (required) throw new Error(`${field} 가 없다`);
+    return undefined;
+  }
+  const v = value as Record<string, unknown>;
+  if (typeof v !== 'object' || v === null) throw new Error(`${field} 는 {ko, en} 맵이다`);
+  const ko = v.ko;
+  const en = v.en;
+  if (typeof ko !== 'string' || ko.trim() === '') throw new Error(`${field}.ko 가 비었다`);
+  if (typeof en !== 'string' || en.trim() === '') throw new Error(`${field}.en 이 비었다`);
+  return { ko: ko.trim(), en: en.trim() };
+}
+
+/**
+ * 관리 도구가 보낸 게시판 입력을 저장할 문서로 정규화한다. Firebase 를 모르는 순수 함수라
+ * 경계값을 에뮬레이터 없이 찍을 수 있다. 아티스트 존재 확인만 호출부가 한다 — 읽기가 필요해서다.
+ */
+export function normalizeBoard(input: BoardInput): { boardId: string; doc: BoardDoc } {
+  const boardId = input.boardId;
+  if (typeof boardId !== 'string' || !BOARD_ID_RE.test(boardId)) {
+    throw new Error('boardId 는 [A-Za-z0-9_-] 1~64자다');
+  }
+
+  const kind = input.kind;
+  if (kind !== 'free' && kind !== 'artist') throw new Error('kind 는 free 또는 artist 다');
+
+  // 두 방향 다 막는다. free 를 다른 id 로 만들면 기본 탭이 둘이 되고, free 문서를
+  // artist 로 바꾸면 존재하지 않는 아티스트를 가리키는 아이돌 게시판이 된다.
+  if ((kind === 'free') !== (boardId === FREE_BOARD_ID)) {
+    throw new Error(`자유게시판은 id 가 ${FREE_BOARD_ID} 여야 하고, 그 id 는 자유게시판 전용이다`);
+  }
+
+  const archived = input.archived === undefined ? false : input.archived;
+  if (typeof archived !== 'boolean') throw new Error('archived 는 불리언이다');
+  if (archived && kind === 'free') throw new Error('자유게시판은 보관할 수 없다');
+
+  const order = input.order === undefined ? 0 : input.order;
+  if (typeof order !== 'number' || !Number.isFinite(order)) throw new Error('order 는 숫자다');
+
+  const accentColor = input.accentColor;
+  if (accentColor !== undefined && (typeof accentColor !== 'string' || !HEX_COLOR_RE.test(accentColor))) {
+    throw new Error('accentColor 는 #RRGGBB 다');
+  }
+
+  const description = localized(input.description, 'description', false);
+  const doc: BoardDoc = {
+    kind,
+    name: localized(input.name, 'name', true) as { ko: string; en: string },
+    order,
+    archived,
+    // 아이돌 게시판은 id 가 곧 artistId 다. 필드로도 두는 이유는 앱이 kind 로 갈래를
+    // 나누지 않고 artistId 유무만 보고 아티스트를 붙일 수 있게 하기 위해서다.
+    ...(kind === 'artist' && { artistId: boardId }),
+    ...(description && { description }),
+    ...(accentColor !== undefined && { accentColor }),
+  };
+  return { boardId, doc };
+}

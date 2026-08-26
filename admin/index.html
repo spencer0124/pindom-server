@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PINDOM 관리 · 게시판</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d0f; --panel: #17171b; --line: #2a2a31;
+    --text: #ececf0; --dim: #8b8b96; --accent: #58cf04; --bad: #ff5757;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 64px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 32px 0 12px; color: var(--dim); font-weight: 600; }
+  .sub { color: var(--dim); margin: 0 0 24px; }
+  button {
+    font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0d0d0f; font-weight: 700; }
+  button:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; }
+  td.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); }
+  tr.archived td { opacity: .45; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; }
+  form { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  label { display: block; flex: 1 1 180px; margin-bottom: 12px; font-size: 12px; color: var(--dim); }
+  label > input, label > select {
+    display: block; width: 100%; margin-top: 5px; padding: 8px 10px;
+    font: inherit; color: var(--text); background: #0d0d0f;
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  label.check { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  label.check input { margin: 0; }
+  .msg { margin-top: 12px; min-height: 20px; }
+  .msg.bad { color: var(--bad); }
+  .msg.good { color: var(--accent); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PINDOM 관리 · 게시판</h1>
+  <p class="sub">아이돌 게시판을 추가하고 이름·색·순서를 고친다. 자유게시판은 고정이다.</p>
+
+  <div id="gate">
+    <button id="signIn" class="primary">Google 로 로그인</button>
+    <p class="msg" id="gateMsg"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <p class="sub"><span id="who"></span> · <button id="signOut">로그아웃</button></p>
+
+    <h2>게시판</h2>
+    <table>
+      <thead><tr><th>id</th><th>이름</th><th>종류</th><th>순서</th><th>상태</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <h2 id="formTitle">게시판 추가</h2>
+    <form id="form">
+      <div class="row">
+        <label>종류
+          <select id="kind">
+            <option value="artist">아이돌 게시판</option>
+            <option value="free">자유게시판</option>
+          </select>
+        </label>
+        <label id="artistField">아이돌
+          <select id="artistId"></select>
+        </label>
+        <label>순서 (작을수록 위)
+          <input id="order" type="number" step="10" value="0">
+        </label>
+      </div>
+      <div class="row">
+        <label>이름 (한국어)<input id="nameKo" required></label>
+        <label>이름 (영어)<input id="nameEn" required></label>
+      </div>
+      <div class="row">
+        <label>설명 (한국어, 선택)<input id="descKo"></label>
+        <label>설명 (영어, 선택)<input id="descEn"></label>
+        <label>강조색 (선택)<input id="accentColor" placeholder="#58CF04"></label>
+      </div>
+      <div class="row">
+        <label class="check"><input id="archived" type="checkbox"> 목록에서 내림 (보관)</label>
+      </div>
+      <div class="row">
+        <button class="primary" id="save" type="submit">저장</button>
+        <button type="button" id="reset">새로 작성</button>
+      </div>
+      <p class="msg" id="msg"></p>
+    </form>
+  </div>
+</main>
+
+<script type="module">
+// Firebase Hosting 이 /__/firebase/init.json 으로 이 프로젝트의 웹 설정을 내려준다.
+// 키를 파일에 박지 않는 이유는 이 레포가 public 이어서가 아니라(웹 설정은 비밀이 아니다)
+// 프로젝트를 바꿔 배포해도 페이지를 고칠 일이 없어서다.
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import {
+  GoogleAuthProvider, connectAuthEmulator, getAuth, onAuthStateChanged,
+  signInWithPopup, signOut,
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import {
+  collection, connectFirestoreEmulator, getDocs, getFirestore, orderBy, query,
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import {
+  connectFunctionsEmulator, getFunctions, httpsCallable,
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+const app = initializeApp(await (await fetch('/__/firebase/init.json')).json());
+const auth = getAuth(app);
+const db = getFirestore(app);
+const fns = getFunctions(app, 'asia-northeast3');
+
+const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+if (local) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+}
+
+const saveBoard = httpsCallable(fns, 'saveBoard');
+
+let artists = [];
+let boards = [];
+
+// ── 로그인 ────────────────────────────────────────────────────────────────────
+
+$('signIn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider())
+  .catch((e) => { $('gateMsg').textContent = e.message; $('gateMsg').className = 'msg bad'; });
+$('signOut').onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    $('gate').classList.remove('hidden');
+    $('app').classList.add('hidden');
+    return;
+  }
+  // 강제 갱신. grant-admin 을 방금 돌렸다면 캐시된 토큰에는 클레임이 없다.
+  const { claims } = await user.getIdTokenResult(true);
+  if (claims.admin !== true) {
+    $('gateMsg').textContent = `${user.email} 은 관리자가 아니다. grant-admin 으로 권한을 받아야 한다.`;
+    $('gateMsg').className = 'msg bad';
+    await signOut(auth);
+    return;
+  }
+  $('who').textContent = user.email;
+  $('gate').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  await load();
+});
+
+// ── 목록 ──────────────────────────────────────────────────────────────────────
+
+async function load() {
+  const [artistSnap, boardSnap] = await Promise.all([
+    getDocs(collection(db, 'artists')),
+    getDocs(query(collection(db, 'boards'), orderBy('order'))),
+  ]);
+  artists = artistSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  boards = boardSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  $('artistId').innerHTML = artists
+    .map((a) => `<option value="${esc(a.id)}">${esc(a.name?.ko ?? a.id)}</option>`)
+    .join('');
+
+  const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+  $('rows').innerHTML = boards.map((b) => `
+    <tr class="${b.archived ? 'archived' : ''}">
+      <td class="id">${esc(b.id)}</td>
+      <td>${HEX_COLOR_RE.test(b.accentColor ?? '') ? `<span class="swatch" style="background:${b.accentColor}"></span> ` : ''}${esc(b.name?.ko ?? '')}</td>
+      <td>${b.kind === 'free' ? '자유' : '아이돌'}</td>
+      <td>${Number(b.order ?? 0)}</td>
+      <td>${b.archived ? '보관' : '노출'}</td>
+      <td><button type="button" data-edit="${esc(b.id)}">수정</button></td>
+    </tr>`).join('');
+
+  for (const btn of $('rows').querySelectorAll('[data-edit]')) {
+    btn.onclick = () => edit(boards.find((b) => b.id === btn.dataset.edit));
+  }
+}
+
+// ── 폼 ────────────────────────────────────────────────────────────────────────
+
+function syncKind() {
+  const free = $('kind').value === 'free';
+  $('artistField').classList.toggle('hidden', free);
+  // 자유게시판은 하나뿐이고 보관하면 앱의 기본 탭이 사라진다. 함수도 거부한다.
+  $('archived').disabled = free;
+  if (free) $('archived').checked = false;
+}
+$('kind').onchange = syncKind;
+
+function edit(board) {
+  $('formTitle').textContent = `게시판 수정 — ${board.id}`;
+  $('kind').value = board.kind;
+  syncKind();
+  if (board.kind === 'artist') $('artistId').value = board.id;
+  $('nameKo').value = board.name?.ko ?? '';
+  $('nameEn').value = board.name?.en ?? '';
+  $('descKo').value = board.description?.ko ?? '';
+  $('descEn').value = board.description?.en ?? '';
+  $('accentColor').value = board.accentColor ?? '';
+  $('order').value = board.order ?? 0;
+  $('archived').checked = Boolean(board.archived);
+  $('msg').textContent = '';
+  $('form').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('reset').onclick = () => {
+  $('form').reset();
+  $('formTitle').textContent = '게시판 추가';
+  $('msg').textContent = '';
+  syncKind();
+};
+
+$('form').onsubmit = async (e) => {
+  e.preventDefault();
+  const kind = $('kind').value;
+  const descKo = $('descKo').value.trim();
+  const descEn = $('descEn').value.trim();
+  const accentColor = $('accentColor').value.trim();
+
+  // ponytail: 저장은 merge 다. 설명이나 강조색을 비워 저장해도 기존 값이 지워지지는
+  // 않는다. 지우기가 필요해지면 saveBoard 에 삭제할 필드 목록을 실어 보내면 된다.
+  const payload = {
+    boardId: kind === 'free' ? 'free' : $('artistId').value,
+    kind,
+    name: { ko: $('nameKo').value.trim(), en: $('nameEn').value.trim() },
+    order: Number($('order').value),
+    archived: $('archived').checked,
+    ...(descKo && descEn && { description: { ko: descKo, en: descEn } }),
+    ...(accentColor && { accentColor }),
+  };
+  if ((descKo === '') !== (descEn === '')) {
+    $('msg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
+    $('msg').className = 'msg bad';
+    return;
+  }
+
+  $('save').disabled = true;
+  try {
+    const { data } = await saveBoard(payload);
+    $('msg').textContent = `${data.boardId} ${data.created ? '추가' : '수정'} 완료`;
+    $('msg').className = 'msg good';
+    await load();
+  } catch (err) {
+    $('msg').textContent = err.message;
+    $('msg').className = 'msg bad';
+  } finally {
+    $('save').disabled = false;
+  }
+};
+
+syncKind();
+</script>
+</body>
+</html>

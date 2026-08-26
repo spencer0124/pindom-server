@@ -56,6 +56,26 @@ for (const artist of data.artists) {
   if (existed) kept += 1;
 }
 
+// 게시판. 아이돌 게시판은 아티스트에서 파생한다 — 문서 id 가 곧 artistId 라
+// (앱 계약서의 posts.boardId 정의) 아티스트 목록과 어긋날 수 없게 한 번에 만든다.
+// seed-data.json 이 직접 들고 있는 것은 아티스트에 매이지 않는 자유게시판뿐이다.
+const artistBoards = data.artists.map((artist, i) => ({
+  id: artist.id,
+  kind: 'artist',
+  artistId: artist.id,
+  name: artist.name,
+  order: (i + 1) * 10,
+  ...(artist.accentColor && { accentColor: artist.accentColor }),
+}));
+
+for (const board of [...data.boards, ...artistBoards]) {
+  const { id, ...rest } = board;
+  // archived 는 관리 도구가 소유한다. 여기서 매번 false 로 되돌리면 내려둔 게시판이
+  // 시드 한 번에 다시 올라온다.
+  await upsert(`boards/${id}`, rest,
+    { archived: false, createdAt: FieldValue.serverTimestamp() });
+}
+
 for (const place of data.places) {
   const { id, lat, lng, ...rest } = place;
   const existed = await upsert(`places/${id}`,
@@ -82,6 +102,7 @@ for (const raffle of data.raffles) {
 
 const counts = [
   ['artists', data.artists.length],
+  ['boards', data.boards.length + artistBoards.length],
   ['places', data.places.length],
   ['courses', data.courses.length],
   ['raffles', data.raffles.length],

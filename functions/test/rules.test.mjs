@@ -22,6 +22,7 @@ const BOB = 'bob';
 // 프로필 수정 테스트 전용. 앨리스의 닉네임을 바꾸면 리뷰·게시글의 작성자 대조가 깨진다.
 const CAROL = 'carol';
 const PLACE = 'place1';
+const BOARD = 'free';
 const OTHER_PLACE = 'place2';
 
 let env;
@@ -58,6 +59,7 @@ before(async () => {
     await setDoc(doc(db, 'tickets', 'tA2'), { userId: ALICE, placeId: PLACE, visibility: 'public', serial: 'PD-2' });
     await setDoc(doc(db, 'tickets', 'tA3'), { userId: ALICE, placeId: OTHER_PLACE, visibility: 'private', serial: 'PD-3' });
     await setDoc(doc(db, 'tickets', 'tB1'), { userId: BOB, placeId: PLACE, visibility: 'private', serial: 'PD-4' });
+    await setDoc(doc(db, 'boards', BOARD), { kind: 'free', name: { ko: '자유게시판', en: 'Free Board' }, order: 0, archived: false });
   });
 });
 
@@ -155,7 +157,7 @@ describe('reviews', () => {
 
 describe('나머지', () => {
   const post = (over = {}) => ({
-    boardId: 'b1', authorId: ALICE, authorNickname: '앨리스', authorTier: 'club10',
+    boardId: BOARD, authorId: ALICE, authorNickname: '앨리스', authorTier: 'club10',
     body: 'hi', imageUrls: [], likeCount: 0, commentCount: 0,
     createdAt: serverTimestamp(), ...over,
   });
@@ -169,6 +171,15 @@ describe('나머지', () => {
     await assertFails(setDoc(doc(db, 'posts', 'p5'), post({ authorTier: 'clubGo' })));
     await assertFails(setDoc(doc(db, 'posts', 'p6'),
       post({ createdAt: Timestamp.fromMillis(4102444800000) })));
+    // 없는 게시판에 쓴 글은 어느 피드 쿼리에도 안 잡힌다 — 컬렉션에만 남는 유령이 된다.
+    await assertFails(setDoc(doc(db, 'posts', 'p8'), post({ boardId: 'no-such-board' })));
+  });
+
+  it('boards — 읽기는 로그인만, 쓰기는 saveBoard 전용', async () => {
+    await assertSucceeds(getDoc(doc(alice(), 'boards', BOARD)));
+    await assertFails(setDoc(doc(alice(), 'boards', 'my-own-board'),
+      { kind: 'artist', name: { ko: '내 게시판', en: 'Mine' }, order: 0, archived: false }));
+    await assertFails(updateDoc(doc(alice(), 'boards', BOARD), { order: -1 }));
   });
 
   it('사용자 문서가 없는 계정은 글을 쓸 수 없다', async () => {
