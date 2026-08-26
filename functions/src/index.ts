@@ -32,10 +32,13 @@ import {
   MAX_TOOL_ROUNDS,
   SEARCH_TOOL,
   SYSTEM_PROMPT,
+  type Route,
   type Suggestion,
   dayKeyKst,
   dedupe,
   nextCallCount,
+  parseRoute,
+  samplePath,
   sanitizeHistory,
   toSuggestion,
   waypoints,
@@ -522,6 +525,42 @@ async function searchNearby(
   return { places };
 }
 
+/**
+ * 카카오모빌리티 자동차 길찾기. 좌표는 x=경도, y=위도 로 보내고 vertexes 도 같은 순서로 온다.
+ * 경로를 못 찾는 것은 흔한 일이라(섬, 도로 없는 지점) 던지지 않고 null 로 돌려준다.
+ */
+async function fetchRoute(
+  origin: LatLng,
+  destination: LatLng,
+  stops: LatLng[],
+  key: string,
+): Promise<Route | null> {
+  const res = await fetch('https://apis-navi.kakaomobility.com/v1/waypoints/directions', {
+    method: 'POST',
+    headers: { Authorization: `KakaoAK ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      origin: { x: origin.lng, y: origin.lat },
+      destination: { x: destination.lng, y: destination.lat },
+      // 경유지는 최대 30개다. 코스가 그보다 길면 앞에서 자른다.
+      waypoints: stops.slice(0, 30).map((s) => ({ x: s.lng, y: s.lat })),
+      priority: 'RECOMMEND',
+    }),
+  });
+  if (!res.ok) return null;
+  return parseRoute(await res.json());
+}
+
+/** 촬영지 문서에서 좌표를 읽는다. 클라이언트가 보낸 좌표는 판정에도 경로에도 쓰지 않는다. */
+async function placeCoords(placeId: string): Promise<{ at: LatLng; name: string }> {
+  const snap = await db.doc(`places/${placeId}`).get();
+  const place = snap.data();
+  if (!place) throw new HttpsError('not-found', `없는 장소다: ${placeId}`);
+  return {
+    at: geo(place.location as GeoPoint),
+    name: String((place.name as Data | undefined)?.ko ?? '촬영지'),
+  };
+}
+
 async function callOpenAI(messages: ChatMessage[], key: string): Promise<Data> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -570,18 +609,21 @@ export const askAssistant = onCall(
         : undefined;
 
     let context = '';
+    let route: Route | null = null;
     if (typeof data.towardPlaceId === 'string' && data.towardPlaceId !== '') {
-      const snap = await db.doc(`places/${data.towardPlaceId}`).get();
-      const place = snap.data();
-      if (!place) throw new HttpsError('not-found', '없는 장소다');
-      const target = geo(place.location as GeoPoint);
-      const name = (place.name as Data | undefined)?.ko ?? '촬영지';
-      context = `사용자는 "${name}" (${target.lat}, ${target.lng}) 로 가는 중이다.`;
+      const target = await placeCoords(data.towardPlaceId);
+      context = `사용자는 "${target.name}" (${target.at.lat}, ${target.at.lng}) 로 가는 중이다.`;
       if (near) {
-        const stops = waypoints(near, target)
-          .map((w) => `(${w.lat.toFixed(4)}, ${w.lng.toFixed(4)})`)
-          .join(', ');
-        context += ` 출발지는 (${near.lat}, ${near.lng}) 이고, 가는 길의 중간 지점은 ${stops} 이다.`;
+        // 실제 도로 위에서 중간 지점을 잡는다. 직선으로 잡으면 바다나 산을 지나는 좌표가
+        // 나오고, 그 주변을 검색하면 "가는 길에 들를 곳" 이 아닌 것이 추천된다.
+        route = await fetchRoute(near, target.at, [], KAKAO_REST_API_KEY.value());
+        const stops = route ? samplePath(route.path) : waypoints(near, target.at);
+        const printed = stops.map((w) => `(${w.lat.toFixed(4)}, ${w.lng.toFixed(4)})`).join(', ');
+        context += ` 출발지는 (${near.lat}, ${near.lng}) 이고,`;
+        context += route
+          ? ` 자동차로 약 ${Math.round(route.durationSeconds / 60)}분 걸린다.`
+          : ' 경로를 찾지 못했다.';
+        context += ` 가는 길의 중간 지점은 ${printed} 이다.`;
         context += ' 들를 곳을 물으면 중간 지점들과 목적지 주변을 각각 찾아본다.';
       }
     } else if (near) {
@@ -624,6 +666,86 @@ export const askAssistant = onCall(
       }
     }
 
-    return { reply, suggestions: dedupe(suggestions).slice(0, 12) };
+    // 경로를 이미 받아왔으면 함께 돌려준다. 앱이 지도에 선을 그리려고 다시 부를 이유가 없다.
+    return { reply, suggestions: dedupe(suggestions).slice(0, 12), route };
   },
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// saveBoard — 관리 도구 전용
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 게시판 생성·수정. boards 는 규칙에서 write: false 라 이 함수만 쓸 수 있고, 이 함수는
+ * admin 커스텀 클레임이 있는 계정만 부를 수 있다. 클레임은
+ * `npm --prefix functions run grant-admin` 으로 붙인다.
+ *
+ * 삭제는 없다. 게시글이 boardId 로 게시판을 가리키고 있어 문서를 지우면 그 글들이
+ * 존재하지 않는 게시판에 매달린다. 목록에서 내리는 것은 archived 로 한다.
+ */
+export const saveBoard = onCall(async (req) => {
+  requireUid(req);
+  if (req.auth?.token.admin !== true) {
+    throw new HttpsError('permission-denied', '관리자만 게시판을 바꿀 수 있다');
+  }
+
+  let boardId: string;
+  let boardDoc: Record<string, unknown>;
+  try {
+    const normalized = normalizeBoard((req.data ?? {}) as Data);
+    boardId = normalized.boardId;
+    boardDoc = normalized.doc as unknown as Record<string, unknown>;
+  } catch (e) {
+    throw new HttpsError('invalid-argument', (e as Error).message);
+  }
+
+  // 아이돌 게시판은 id 가 artistId 다. 없는 아티스트로 만들면 앱이 게시판 헤더에 붙일
+  // 이름도 색도 못 찾는다.
+  if (boardDoc.kind === 'artist' && !(await db.doc(`artists/${boardId}`).get()).exists) {
+    throw new HttpsError('not-found', `없는 아티스트다: ${boardId}`);
+  }
+
+  const ref = db.doc(`boards/${boardId}`);
+  const existed = (await ref.get()).exists;
+  await ref.set(
+    { ...boardDoc, ...(existed ? {} : { createdAt: FieldValue.serverTimestamp() }) },
+    { merge: true },
+  );
+  return { boardId, created: !existed };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getRoute — 코스를 지도에 선으로 그린다
+//
+// 촬영지 좌표는 서버가 읽는다. 코스 화면과 챗봇의 "지도에서 코스 보기" 가 같은 함수를 쓴다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) => {
+  requireUid(req);
+  const data = (req.data ?? {}) as Data;
+
+  const placeIds = Array.isArray(data.placeIds) ? data.placeIds.filter((v) => typeof v === 'string') : [];
+  if (placeIds.length === 0) throw new HttpsError('invalid-argument', 'placeIds 가 비었다');
+
+  const stops = await Promise.all((placeIds as string[]).map(placeCoords));
+
+  // 출발지를 주면 거기서부터, 아니면 첫 촬영지에서 시작한다.
+  const origin =
+    typeof data.origin === 'object' && data.origin !== null
+      ? ({ lat: num(data.origin as Data, 'lat'), lng: num(data.origin as Data, 'lng') } as LatLng)
+      : (stops[0] as { at: LatLng }).at;
+  const rest = data.origin ? stops : stops.slice(1);
+  if (rest.length === 0) throw new HttpsError('invalid-argument', '출발지와 목적지가 같다');
+
+  const destination = (rest[rest.length - 1] as { at: LatLng }).at;
+  const via = rest.slice(0, -1).map((s) => s.at);
+
+  const route = await fetchRoute(origin, destination, via, KAKAO_REST_API_KEY.value());
+  if (!route) {
+    throw new HttpsError('failed-precondition', '경로를 찾지 못했다', {
+      errorCode: 'route_not_found',
+    });
+  }
+
+  return { ...route, stops: stops.map((s, i) => ({ placeId: placeIds[i], name: s.name, ...s.at })) };
+});

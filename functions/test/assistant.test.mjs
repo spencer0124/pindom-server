@@ -10,9 +10,13 @@ import { describe, it } from 'node:test';
 import {
   DAILY_CALL_LIMIT,
   MAX_HISTORY,
+  MAX_PATH_POINTS,
   dayKeyKst,
+  decimate,
   dedupe,
   nextCallCount,
+  parseRoute,
+  samplePath,
   sanitizeHistory,
   toSuggestion,
   waypoints,
@@ -109,5 +113,70 @@ describe('sanitizeHistory', () => {
   it('배열이 아니거나 빈 내용이면 버린다', () => {
     assert.deepEqual(sanitizeHistory('nope'), []);
     assert.deepEqual(sanitizeHistory([{ role: 'user', content: '' }]), []);
+  });
+});
+
+// 길찾기 응답. vertexes 는 [경도, 위도, 경도, 위도, ...] 로 평평하게 온다.
+const ROUTE_BODY = {
+  routes: [{
+    result_code: 0,
+    summary: { distance: 210_000, duration: 9_000 },
+    sections: [{
+      roads: [
+        { vertexes: [126.978, 37.5665, 127.5, 37.7] },
+        { vertexes: [128.0, 37.8, 128.8336, 37.8796] },
+      ],
+    }],
+  }],
+};
+
+describe('parseRoute', () => {
+  it('vertexes 를 위도·경도로 되짚어 경로를 만든다', () => {
+    const r = parseRoute(ROUTE_BODY);
+    assert.equal(r.path.length, 4);
+    // 뒤집히면 위도 126 이 되어 지구 밖으로 나간다.
+    assert.deepEqual(r.path[0], { lat: 37.5665, lng: 126.978 });
+    assert.deepEqual(r.path.at(-1), { lat: 37.8796, lng: 128.8336 });
+    assert.equal(r.distanceMeters, 210_000);
+    assert.equal(r.durationSeconds, 9_000);
+  });
+
+  it('result_code 가 0 이 아니면 경로가 없다', () => {
+    const failed = { routes: [{ ...ROUTE_BODY.routes[0], result_code: 104 }] };
+    assert.equal(parseRoute(failed), null);
+  });
+
+  it('빈 응답에서 터지지 않는다', () => {
+    assert.equal(parseRoute({}), null);
+    assert.equal(parseRoute(null), null);
+  });
+});
+
+describe('decimate', () => {
+  it('상한 아래면 그대로 둔다', () => {
+    const path = [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }];
+    assert.equal(decimate(path, 10), path);
+  });
+
+  it('솎아내도 시작과 끝은 남는다 — 선이 끊기면 안 된다', () => {
+    const path = Array.from({ length: 5_000 }, (_, i) => ({ lat: i / 1_000, lng: i / 1_000 }));
+    const out = decimate(path, MAX_PATH_POINTS);
+    assert.equal(out.length, MAX_PATH_POINTS);
+    assert.deepEqual(out[0], path[0]);
+    assert.deepEqual(out.at(-1), path.at(-1));
+  });
+});
+
+describe('samplePath', () => {
+  it('경로 위의 점을 고른다 — 직선 보간이 아니다', () => {
+    const path = parseRoute(ROUTE_BODY).path;
+    const stops = samplePath(path);
+    assert.equal(stops.length, 2);
+    // 고른 점은 반드시 경로에 실제로 있던 좌표여야 한다.
+    for (const s of stops) assert.ok(path.some((p) => p.lat === s.lat && p.lng === s.lng));
+  });
+
+  it('점이 너무 적으면 빈 배열 — waypoints 로 떨어진다', () => {
+    assert.deepEqual(samplePath([{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }]), []);
   });
 });
