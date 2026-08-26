@@ -37,9 +37,9 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | `npm --prefix functions run build` | 함수 TypeScript 컴파일 |
 | `firebase deploy --only firestore:rules` | Firestore 규칙만 배포 |
 | `firebase deploy --only storage` | Storage 규칙만 배포 |
-| `node --test functions/test/logic.test.mjs` | 판정 로직 테스트 (에뮬레이터 불필요) |
-| `firebase emulators:exec --only firestore,storage "node --test --test-force-exit functions/test/rules.test.mjs"` | 보안 규칙 테스트 |
-| `firebase emulators:exec --only auth,firestore,storage,functions "node --test --test-force-exit functions/test/functions.test.mjs"` | 함수 동작 테스트 |
+| `node --test functions/test/logic.test.mjs functions/test/import-tourapi.test.mjs` | 순수 로직 테스트 (에뮬레이터 불필요) |
+| `firebase emulators:exec --only auth,firestore,storage,functions "node --test functions/test/*.test.mjs"` | 전체 테스트. **레포 루트에서** 돌린다 — `rules.test.mjs` 가 `firestore.rules` 를 cwd 기준으로 읽는다 |
+| `npm --prefix functions run import-tourapi -- --dry-run` | TourAPI 에서 촬영지 정보를 받아 `seed-data.json` 을 채운다. 키는 `.env.local` |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
 | `npm --prefix functions run seed` | 시드 데이터 적재 (에뮬레이터). 실제 프로젝트는 `-- --project <id> --yes` |
@@ -63,6 +63,7 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | [app-handoff](docs/2026-08-22-app-handoff.md) | 배포 상태, 함수 3개 사용법, 규칙이 요구하는 조건, 계약서와 달라진 부분 | **앱 개발자는 여기부터** |
 | [worklog](docs/2026-08-22-worklog.md) | 계약서 리뷰 이후 작업 기록 — 판단·발견한 결함·검증 방법을 커밋 단위로 | 맥락이 필요할 때, AI 에이전트 포함 |
 | [backend-contract-review](docs/backend-contract-review.md) | 계약서 리뷰 원문과 회신 | "왜 그렇게 했나" 를 볼 때 |
+| [tourapi-usage](docs/tourapi-usage.md) | 관광공사 OpenAPI — 어느 서비스의 어느 오퍼레이션으로 `places` 의 어느 필드를 채우는지, 계정·쿼터·저작권 | 촬영지를 추가하거나 적재 스크립트를 고칠 때 |
 
 필드 이름의 최종 심판은 앱 레포의 `docs/reference/backend-contract.md` 다. 그 문서와 이
 저장소가 갈린 지점은 위 두 문서에 표로 정리돼 있다.
@@ -97,6 +98,7 @@ gcloud firestore fields ttls update expiresAt \
 - [x] Phase 3 — 보안 규칙
 - [x] Phase 4 — Cloud Functions
 - [x] Phase 5 — 시드 데이터와 배포
+- [x] Phase 6 — TourAPI 적재 경로 ([tourapi-usage](docs/tourapi-usage.md))
 
 ## 보안
 

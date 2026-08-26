@@ -16,7 +16,15 @@
 | 시드 데이터 | 최애 3 · 촬영지 5 · 코스 2 · 응모 4 |
 | 세션 TTL | `verificationSessions.expiresAt` — 24시간 후 자동 삭제, ACTIVE |
 
-**앱이 붙기만 하면 되는 상태다.** 백엔드에서 대기 중인 작업은 없다.
+**앱이 붙기만 하면 되는 상태다.**
+
+> **이 문서는 2026-08-22 시점의 인수 기록이다.** 그 뒤의 변경은 앱 레포의
+> [`backend-contract.md`](https://github.com/spencer0124/pindom/blob/main/docs/reference/backend-contract.md)
+> 가 기준이며, 두 저장소의 소통도 그 문서에서 한다. 이 문서에서 그 뒤에 달라진 것은
+> **`verifyLocation` 의 판정 순서**(아래 표, 2026-08-26 수정)와 **촬영지 데이터의 출처**
+> (손으로 넣던 값이 TourAPI 적재로 바뀌었고 좌표도 함께 움직였다 —
+> [tourapi-usage](tourapi-usage.md))다. **둘 다 2026-08-26 에 `pindom-1234` 로 나갔다.**
+> 주문진 방파제의 인증 기준 좌표가 약 2km, 을왕리해수욕장이 약 64m 움직였다.
 
 ## 접속 정보
 
@@ -56,17 +64,23 @@ getFunctions(app, 'asia-northeast3')   // 빼먹으면 us-central1 로 붙어 no
 
 | 순서 | 조건 | `reason` |
 | --- | --- | --- |
-| 1 | `isMock === true` | `mock_location` |
-| 2 | `accuracy > 65` | `poor_accuracy` — 이 측정은 세션에 기록되지 않는다 |
-| 3 | 반경(`places.radiusMeters`, 기본 50) 밖 | `out_of_radius` |
-| 4 | 세션 내 200m 이상 이동 쌍이 150km/h 초과 | `implausible_speed` |
-| 5 | 직전 발행 티켓 대비 300km/h 초과 | `implausible_speed` |
+| 1 | 직전 발행 티켓 대비 300km/h 초과 | `implausible_speed` |
+| 2 | `isMock === true` | `mock_location` |
+| 3 | `accuracy > 65` | `poor_accuracy` — 이 측정은 세션에 기록되지 않는다 |
+| 4 | 반경(`places.radiusMeters`, 기본 50) 밖 | `out_of_radius` |
+| 5 | 세션 내 200m 이상 이동 쌍이 150km/h 초과 | `implausible_speed` |
 
 거리는 **기기가 보고한 오차 반경을 뺀 값**으로 판정한다. 60m 지점에서 `accuracy: 15` 면 45m 로
 친다. 응답의 `distanceMeters` 도 그 값이라 화면의 표와 판정이 어긋나지 않는다.
 
-5번은 **세션의 첫 측정에서만** 돈다. 이후 측정은 4번이 같은 일을 하고, 매번 돌리면 핑마다 문서를
+1번은 **세션을 여는 호출에서만** 돈다. 이후 측정은 5번이 같은 일을 하고, 매번 돌리면 핑마다 문서를
 둘씩 더 읽는다. 판정 강도는 같다.
+
+**1번이 맨 앞인 이유** (2026-08-26 수정): 예전에는 이 검사가 맨 뒤에서 "세션에 기록된 측정이
+없을 때" 만 돌았다. 그런데 `mock_location`·`out_of_radius` 거부도 측정으로 기록되기 때문에,
+세션 첫 핑을 일부러 반경 밖으로 쏘면 이 검사가 통째로 소모되고 그 세션은 끝까지 300km/h 게이트
+없이 지나갔다. 지금은 어떤 거부보다 앞에 있다. **첫 핑이 반경 밖이면서 동시에 불가능한 속도이면
+`out_of_radius` 가 아니라 `implausible_speed` 가 온다.**
 
 `grant.token` 은 `sessionId` 와 같은 값이고 **유효시간 10분**이다. 계약서에 값이 없어 앱 목
 구현(`mock.ts`)이 쓰던 10분을 그대로 따랐다.

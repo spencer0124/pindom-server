@@ -143,6 +143,14 @@ export const verifyLocation = onCall(async (req) => {
     distanceMeters: distance,
   });
 
+  // 도착 검사는 세션의 첫 호출에서 한 번만 돈다. readings 가 비었는지로 판단하면 안 된다 —
+  // mock·out_of_radius 거부도 readings 에 쌓이므로, 일부러 한 번 튕기면 이 검사가 통째로
+  // 소모되고 이후 세션 전체가 300km/h 게이트 없이 지나간다. 어떤 거부보다 앞에 둬야
+  // sessionId 없음 == 아직 안 돌았음 이 성립한다.
+  if (!sessionId && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt))) {
+    return reject('implausible_speed', true);
+  }
+
   if (isMock) return reject('mock_location', true);
 
   // 오차 200m 짜리 샘플이 배열에 남으면 다음 속도 계산을 오염시킨다. 기록하지 않는다.
@@ -157,13 +165,6 @@ export const verifyLocation = onCall(async (req) => {
     if (isImplausibleJump(moved, seconds, SESSION_SPEED_KMH)) {
       return reject('implausible_speed', true);
     }
-  }
-
-  // 직전 티켓 대비 검사는 "여기 도착했는가" 를 보는 것이라 세션의 첫 측정에서만 의미가 있다.
-  // 이후 측정은 바로 위 세션 내부 검사가 덮는다. 인증 화면은 같은 세션으로 여러 번 호출하므로
-  // 매번 돌리면 핑마다 문서를 둘씩 더 읽는다.
-  if (readings.length === 0 && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt))) {
-    return reject('implausible_speed', true);
   }
 
   const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);

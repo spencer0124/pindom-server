@@ -3,21 +3,30 @@
   "artists": [
     {
       "id": "artist-lumina",
-      "name": { "ko": "루미나", "en": "Lumina" },
+      "name": {
+        "ko": "루미나",
+        "en": "Lumina"
+      },
       "initial": "LM",
       "imageUrl": "https://picsum.photos/seed/lumina/300/300",
       "accentColor": "#58CF04"
     },
     {
       "id": "artist-echoline",
-      "name": { "ko": "에코라인", "en": "Echoline" },
+      "name": {
+        "ko": "에코라인",
+        "en": "Echoline"
+      },
       "initial": "EL",
       "imageUrl": "https://picsum.photos/seed/echoline/300/300",
       "accentColor": "#FF5E00"
     },
     {
       "id": "artist-nightpost",
-      "name": { "ko": "나이트포스트", "en": "Nightpost" },
+      "name": {
+        "ko": "나이트포스트",
+        "en": "Nightpost"
+      },
       "initial": "NP"
     }
   ],
@@ -25,70 +34,146 @@
     {
       "id": "place-jumunjin",
       "roman": "Jumunjin Breakwater",
-      "name": { "ko": "주문진 방파제", "en": "Jumunjin Breakwater" },
+      "name": {
+        "ko": "주문진 방파제",
+        "en": "Jumunjin Breakwater"
+      },
       "description": {
         "ko": "바다를 등지고 서면 방파제 끝까지 한 프레임에 들어옵니다. 파도가 높은 날은 진입이 통제돼요.",
         "en": "Stand with your back to the sea and the whole breakwater fits in one frame. Access closes when the swell is high."
       },
-      "region": { "ko": "강원 강릉", "en": "Gangneung, Gangwon" },
-      "workTitle": { "ko": "도깨비", "en": "Goblin" },
+      "region": {
+        "ko": "강원 강릉",
+        "en": "Gangneung, Gangwon"
+      },
+      "workTitle": {
+        "ko": "도깨비",
+        "en": "Goblin"
+      },
       "workKind": "mv",
       "address": "강원특별자치도 강릉시 주문진읍 해안로 1609",
-      "artistIds": ["artist-lumina"],
-      "lat": 37.8983,
-      "lng": 128.8306,
+      "artistIds": [
+        "artist-lumina"
+      ],
+      "lat": 37.8796220881,
+      "lng": 128.8335906768,
       "radiusMeters": 50,
-      "coverImageUrl": "https://picsum.photos/seed/jumunjin/1200/800"
+      "coverImageUrl": "http://tong.visitkorea.or.kr/cms/resource/81/2656581_image2_1.jpg",
+      "contentId": "131271",
+      "contentIdEn": "2992466",
+      "coverImageLicense": "Type3",
+      "overview": {
+        "ko": "주문진 방파제는 드라마 촬영지로 유명해졌다. 등장인물들이 처음 만나는 장소로 등장한 방파제는 여전히 드라마 속 멋진 풍광을 그대로 간직하고 있다. 이곳을 찾은 사람들은 드라마의 장면을 따라 하며 주인공이 된 듯한 기분을 만끽한다. 주문진 방파제는 동방파제와 서방파제로 이루어져 있다. 동방파제는 1㎞이고 서방파제는 200m로 되어있다. 봄부터 9월까지는 가자미낚시가 이어지고 10월에 들어서는 노래미, 학꽁치, 우럭이 나온다. 11월 이후부터 3월까지는 숭어와 황어가 주어종이 된다. 최고의 시즌은 10월부터 3월까지이다.",
+        "en": "Jumunjin Breakwater was made famous as the filming site of the show “Guardian: The Lonely and Great God (2016).” Serving as the backdrop of the two leads’ fateful first meeting, the breakwater still retains its beautiful scenery. Many visitors recreate the scene from their favorite show here. The breakwater itself is divided into the east and the west parts. The eastern breakwater is 1 kilometer, while the western breakwater is 200 meters long. One can fish for plaice from spring to September, while spotty belly greenling, spipefish, and rockfish can be found in October. From December to March, grey mullet and big-scaled redfin become the main species caught here. The best season to fish here is between October and March."
+      }
     },
     {
       "id": "place-gamcheon",
       "roman": "Gamcheon Culture Village",
-      "name": { "ko": "감천문화마을", "en": "Gamcheon Culture Village" },
+      "name": {
+        "ko": "감천문화마을",
+        "en": "Gamcheon Culture Village"
+      },
       "description": {
         "ko": "계단식 골목 전체가 배경입니다. 주민 거주 구역이라 촬영 소음에 주의하세요.",
         "en": "The terraced alleys are the set. People live here, so keep the noise down."
       },
-      "region": { "ko": "부산 사하", "en": "Saha, Busan" },
-      "workTitle": { "ko": "변호인", "en": "The Attorney" },
+      "region": {
+        "ko": "부산 사하",
+        "en": "Saha, Busan"
+      },
+      "workTitle": {
+        "ko": "변호인",
+        "en": "The Attorney"
+      },
       "workKind": "drama",
       "address": "부산광역시 사하구 감내2로 203",
-      "artistIds": ["artist-echoline"],
-      "lat": 35.0975,
-      "lng": 129.0107,
+      "artistIds": [
+        "artist-echoline"
+      ],
+      "lat": 35.0974606978369,
+      "lng": 129.010596996534,
       "radiusMeters": 50,
-      "coverImageUrl": "https://picsum.photos/seed/gamcheon/1200/800"
+      "coverImageUrl": "https://tong.visitkorea.or.kr/cms/resource/91/3365491_image2_1.jpg",
+      "contentId": "1997221",
+      "contentIdEn": "1998211",
+      "coverImageLicense": "Type3",
+      "openHours": {
+        "ko": "상시 개방"
+      },
+      "closedDays": {
+        "ko": "연중무휴"
+      },
+      "overview": {
+        "ko": "감천문화마을은 1950년대 6.25 피난민의 힘겨운 삶의 터전으로 시작되어 현재에 이르기까지 부산의 역사를 그대로 간직하고 있는 곳이다. 산자락을 따라 질서 정연하게 늘어선 계단식 집단 주거형태와 모든 길이 통하는 미로 같은 골목길의 경관은 감천만의 독특함을 보여준다. 부산의 낙후된 달동네였지만 문화예술을 가미한 도시재생사업을 추진하면서 지금은 연간 185만 명의 국내외 관광객이 다녀가는 대표 관광명소가 되었다. 산비탈을 따라 계단식으로 들어선 아름다운 파스텔톤의 집들과 미로와 같은 골목길이 있어 한국의 마추픽추, 산토리니로 불린다. 2016년 대한민국 공간문화대상 최고상인 대통령상을 수상하기도 했다. 감천문화마을에서는 아름다운 자연과 어우러진 그림 같은 마을의 풍경을 즐기면서, 골목골목 설치된 다양한 형태의 작품을 감상할 수 있으며, 감천문화마을 내 입주작가들의 공방을 통해 다양한 공예 체험도 가능하여 관광객들이 끊임없이 찾고 있다.",
+        "en": "Gamcheon Culture Villiage was formed by refugees of the Korean war who built their houses in staircase-fashion on the foothills of a coastal mountain. The many alleys that cut through this community are vibrantly decorated with murals and sculptures created by the residents. Today, it is a popular attraction in Busan visited by a number of tourists every year."
+      }
     },
     {
       "id": "place-namsan",
       "roman": "N Seoul Tower",
-      "name": { "ko": "N서울타워 전망대", "en": "N Seoul Tower Observatory" },
+      "name": {
+        "ko": "N서울타워 전망대",
+        "en": "N Seoul Tower Observatory"
+      },
       "description": {
         "ko": "자물쇠 벽 앞이 인증샷 포인트. 해질녘 30분이 가장 붐빕니다.",
         "en": "The lock wall is the shot. The half hour around sunset is the busiest."
       },
-      "region": { "ko": "서울 중구", "en": "Jung-gu, Seoul" },
-      "workTitle": { "ko": "별에서 온 그대", "en": "My Love from the Star" },
+      "region": {
+        "ko": "서울 중구",
+        "en": "Jung-gu, Seoul"
+      },
+      "workTitle": {
+        "ko": "별에서 온 그대",
+        "en": "My Love from the Star"
+      },
       "workKind": "drama",
       "address": "서울특별시 용산구 남산공원길 105",
-      "artistIds": ["artist-lumina"],
-      "lat": 37.5512,
-      "lng": 126.9882,
+      "artistIds": [
+        "artist-lumina"
+      ],
+      "lat": 37.5510545366352,
+      "lng": 126.987882083295,
       "radiusMeters": 50,
-      "coverImageUrl": "https://picsum.photos/seed/namsan/1200/800"
+      "coverImageUrl": "https://picsum.photos/seed/namsan/1200/800",
+      "contentId": "126535",
+      "contentIdEn": "264550",
+      "openHours": {
+        "ko": "- 평일 10:00~22:30- 주말 10:00~23:00"
+      },
+      "closedDays": {
+        "ko": "연중무휴"
+      },
+      "overview": {
+        "ko": "남산서울타워는 효율적인 방송전파 송수신과 한국의 전통미를 살린 관광 전망시설의 기능을 겸비한 국내 최초의 종합전파탑으로 방송문화와 관광산업의 미래를 위해 건립되었다. 세계 유명한 종합 탑들이 그 나라 또는 그 도시의 상징적인 존재가 된 것처럼 남산서울타워 역시 지난 40여 년간 대한민국의 대표적인 관광지이자 서울의 상징물 역할을 해왔다. 남산서울타워는 서울 시내 전 지역에서 바라보이는 탑의 높이와 독특한 구조, 형태 등으로 인하여 시민의 관심과 사랑의 대상이 되었고 내외국인들이 즐겨 찾는 제1의 관광 명소로서의 위치를 확고히 하고 있다. 최근에는 한류 바람을 몰고 온 각종 예능, 드라마의 촬영지로 이름이 높아지면서 내외국인 관광객들이 발길이 끊이지 않는 곳이다.",
+        "en": "Namsan Seoul Tower was the first multipurpose tower to be established in Korea, effectively incorporating a sightseeing observatory into a broadcasting tower. For the past 40 years, Namsan Seoul Tower has served as an iconic landmark of Korea and a representative tourist attraction. The tower's observatory offers an unobstructed view of the whole city, allowing it to become one of the all-time favorite attractions of Seoul citizens as well as domestic and international tourists. Featured in many dramas and reality shows, it is also a fan-favorite destination. Another highlight of the tower is the Namsan Cable Car. The cable car began its operation in 1962, transferring passengers from the foot of the mountain to the base of the tower. Shuttle buses to the Namsan Cable Car from downtown Seoul are also available for visitors' convenience.◎ Travel information to meet Hallyu’s charmIn TXT’s content “TALK X TODAY,” the youngest members, Huening Kai and Taehyun, enjoyed a day out in their school uniforms. They rode the cable car to the top, took pictures together, and secured their wish lock. You can purchase locks at the souvenir shop near the cable car station at the top of the mountain, where name pens are also available to write down your wishes."
+      }
     },
     {
       "id": "place-cheonggye",
       "roman": "Cheonggyecheon Gwangtonggyo",
-      "name": { "ko": "청계천 광통교", "en": "Gwangtonggyo Bridge" },
+      "name": {
+        "ko": "청계천 광통교",
+        "en": "Gwangtonggyo Bridge"
+      },
       "description": {
         "ko": "다리 아래 물길을 따라 걷는 장면의 실제 위치입니다.",
         "en": "The walk along the water under the bridge was filmed here."
       },
-      "region": { "ko": "서울 종로", "en": "Jongno, Seoul" },
-      "workTitle": { "ko": "미생", "en": "Misaeng" },
+      "region": {
+        "ko": "서울 종로",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "미생",
+        "en": "Misaeng"
+      },
       "workKind": "drama",
       "address": "서울특별시 종로구 관철동",
-      "artistIds": ["artist-lumina"],
+      "artistIds": [
+        "artist-lumina"
+      ],
       "lat": 37.569,
       "lng": 126.982,
       "radiusMeters": 50,
@@ -97,42 +182,79 @@
     {
       "id": "place-eurwangni",
       "roman": "Eurwangni Beach",
-      "name": { "ko": "을왕리 해수욕장", "en": "Eurwangni Beach" },
+      "name": {
+        "ko": "을왕리 해수욕장",
+        "en": "Eurwangni Beach"
+      },
       "description": {
         "ko": "뮤직비디오 후반부 롱테이크가 촬영된 백사장 북쪽 끝입니다.",
         "en": "The north end of the sand, where the closing long take was shot."
       },
-      "region": { "ko": "인천 중구", "en": "Jung-gu, Incheon" },
-      "workTitle": { "ko": "밤편지 M/V", "en": "Night Letter M/V" },
+      "region": {
+        "ko": "인천 중구",
+        "en": "Jung-gu, Incheon"
+      },
+      "workTitle": {
+        "ko": "밤편지 M/V",
+        "en": "Night Letter M/V"
+      },
       "workKind": "mv",
-      "address": "인천광역시 중구 용유서로 302번길 16",
-      "artistIds": ["artist-lumina", "artist-nightpost"],
-      "lat": 37.4463,
-      "lng": 126.3733,
+      "address": "인천광역시 영종구 용유서로302번길 16-15 (을왕동)",
+      "artistIds": [
+        "artist-lumina",
+        "artist-nightpost"
+      ],
+      "lat": 37.445948,
+      "lng": 126.372722,
       "radiusMeters": 50,
-      "coverImageUrl": "https://picsum.photos/seed/eurwangni/1200/800"
+      "coverImageUrl": "https://tong.visitkorea.or.kr/cms/resource/78/3518478_image2_1.jpg",
+      "contentId": "128767",
+      "contentIdEn": "264514",
+      "coverImageLicense": "Type1",
+      "openHours": {
+        "ko": "상시 개방"
+      },
+      "closedDays": {
+        "ko": "연중무휴"
+      },
+      "overview": {
+        "ko": "인천광역시 을왕동에 있는 을왕리해수욕장은 초승달처럼 반원으로 생긴 백사장이 유명한 주변 소나무 숲과 바위들이 어우러져 있어 시원한 광경을 자랑하는 곳이다. 반원 모양을 이루고 있는 을왕리해수욕장은 늘목 또는 얼항으로도 불리고 있으며, 많은 사람들이 즐겨 찾는 장소로 1986년 국민관광지로 지정된 곳으로 꽤 큰 규모를 자랑한다. 울창한 송림과 해수욕장 양쪽 옆으로 기암괴석이 늘어서 있어 경관이 매우 아름다우며, 특히 낙조가 아름답기로 서해안에서 손꼽힌다. 해수욕장으로는 드물게 넓은 잔디밭과 충분한 숙박시설이 갖춰져 있어 각종 스포츠를 즐길 수 있으며, 청소년들의 단체 수련을 위한 학생야영장, 수련장 등이 마련되어 있고 배를 빌려 바다로 나가면 망둥어와 우럭·노래미·병어·준치 등도 많이 잡을 수 있다.",
+        "en": "Eurwangni Beach, located in Yeongjong-gu, Incheon, was designated as a National Tourist Site in 1986. Approximately 700 meters in length with an average depth of only 1.5 meters, the beautiful white sand beach is known for amazing sunsets. The beach also has a large grass field and accommodations for those who enjoy various sports. Visitors can also rent boats for fishing."
+      }
     }
   ],
   "courses": [
     {
       "id": "course-gangneung",
       "artistId": "artist-lumina",
-      "name": { "ko": "강릉 바다 코스", "en": "Gangneung Coast Course" },
+      "name": {
+        "ko": "강릉 바다 코스",
+        "en": "Gangneung Coast Course"
+      },
       "description": {
         "ko": "방파제에서 시작해 해안도로를 따라 걷는 반나절 코스",
         "en": "Half a day on foot, from the breakwater along the coast road"
       },
-      "placeIds": ["place-jumunjin", "place-eurwangni"]
+      "placeIds": [
+        "place-jumunjin",
+        "place-eurwangni"
+      ]
     },
     {
       "id": "course-seoul-night",
       "artistId": "artist-lumina",
-      "name": { "ko": "서울 야경 코스", "en": "Seoul After Dark" },
+      "name": {
+        "ko": "서울 야경 코스",
+        "en": "Seoul After Dark"
+      },
       "description": {
         "ko": "해질녘에 출발해 남산에서 마무리하는 저녁 코스",
         "en": "Start at dusk, finish on Namsan"
       },
-      "placeIds": ["place-cheonggye", "place-namsan"]
+      "placeIds": [
+        "place-cheonggye",
+        "place-namsan"
+      ]
     }
   ],
   "raffles": [
