@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import {
   ACCURACY_GATE_M,
@@ -21,7 +22,9 @@ import {
   effectiveDistance,
   isImplausibleJump,
   mintSerial,
+  normalizeArtist,
   normalizeBoard,
+  normalizePlace,
   tierFor,
   type LatLng,
 } from './logic';
@@ -66,6 +69,13 @@ function requireUid(req: CallableRequest): string {
   return uid;
 }
 
+function requireAdmin(req: CallableRequest): void {
+  requireUid(req);
+  if (req.auth?.token.admin !== true) {
+    throw new HttpsError('permission-denied', '관리자만 할 수 있다');
+  }
+}
+
 function str(data: Data, key: string): string {
   const v = data[key];
   if (typeof v !== 'string' || v === '') {
@@ -102,8 +112,11 @@ interface Reading {
 /**
  * GPS 판정. 거부는 throw 가 아니라 verified: false 다 — 66m 떨어져 있는 것은 정상적인
  * 결과이지 고장이 아니고, 인증 실패 화면이 거리·반경·정확도를 표로 렌더링한다.
+ *
+ * minInstances: 1 — 사용자가 촬영지 앞에 서서 결과를 기다리는 화면이다. 콜드 스타트로
+ * 몇 초를 태우기에 가장 나쁜 자리라 웜 인스턴스 하나를 상시로 둔다.
  */
-export const verifyLocation = onCall(async (req) => {
+export const verifyLocation = onCall({ minInstances: 1 }, async (req) => {
   const uid = requireUid(req);
   const data = (req.data ?? {}) as Data;
 
@@ -192,7 +205,12 @@ export const verifyLocation = onCall(async (req) => {
   }
 
   const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);
-  await writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt);
+  await Promise.all([
+    writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt),
+    // 장소/상세의 방문 인증 수. issueTicket 은 여기를 손대지 않는다 — 그랜트를 받고도
+    // 티켓을 안 받을 수 있고, 이 숫자는 "여기 실제로 온 사람" 이지 발행 수가 아니다.
+    placeSnap.ref.update({ verifyCount: FieldValue.increment(1) }),
+  ]);
 
   return {
     sessionId: sessionRef.id,
@@ -351,9 +369,11 @@ export const issueTicket = onCall(async (req) => {
       { merge: true },
     );
 
-    // 갤러리는 인증을 통과한 사진만 모이는 벽이라 여기서만 쓴다.
+    // 갤러리는 인증을 통과한 사진만 모이는 벽이라 여기서만 쓴다. 문서 id 를 티켓 id 와
+    // 같게 두는 이유는 syncGalleryOnVisibility 가 쿼리 없이 바로 지우고 다시 쓰게 하기
+    // 위해서다 — 티켓의 공개 여부가 나중에 바뀌어도 갤러리가 따라가야 한다.
     if (visibility === 'public') {
-      tx.set(placeRef.collection('gallery').doc(), {
+      tx.set(placeRef.collection('gallery').doc(ticketRef.id), {
         ticketId: ticketRef.id,
         authorId: uid,
         photoUrl,
@@ -684,10 +704,7 @@ export const askAssistant = onCall(
  * 존재하지 않는 게시판에 매달린다. 목록에서 내리는 것은 archived 로 한다.
  */
 export const saveBoard = onCall(async (req) => {
-  requireUid(req);
-  if (req.auth?.token.admin !== true) {
-    throw new HttpsError('permission-denied', '관리자만 게시판을 바꿀 수 있다');
-  }
+  requireAdmin(req);
 
   let boardId: string;
   let boardDoc: Record<string, unknown>;
@@ -712,6 +729,70 @@ export const saveBoard = onCall(async (req) => {
     { merge: true },
   );
   return { boardId, created: !existed };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// saveArtist — 관리 도구 전용
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 아티스트 생성·수정. 삭제 없음 — boards·places 가 artistId 로 가리킨다. */
+export const saveArtist = onCall(async (req) => {
+  requireAdmin(req);
+
+  let artistId: string;
+  let artistDoc: Record<string, unknown>;
+  try {
+    const normalized = normalizeArtist((req.data ?? {}) as Data);
+    artistId = normalized.artistId;
+    artistDoc = normalized.doc as unknown as Record<string, unknown>;
+  } catch (e) {
+    throw new HttpsError('invalid-argument', (e as Error).message);
+  }
+
+  const ref = db.doc(`artists/${artistId}`);
+  const existed = (await ref.get()).exists;
+  await ref.set(artistDoc, { merge: true });
+  return { artistId, created: !existed };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// savePlace — 관리 도구 전용
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 촬영지(티켓 발급 장소) 생성·수정. placeId 를 보내면 그 문서를 고치고, 안 보내면
+ * 새로 만든다 — TourAPI 적재본과 달리 auto id 로 충분하다. 삭제 없음 — tickets 가
+ * placeId 로 가리킨다.
+ */
+export const savePlace = onCall(async (req) => {
+  requireAdmin(req);
+
+  let placeId: string | undefined;
+  let placeDoc: Record<string, unknown>;
+  try {
+    const normalized = normalizePlace((req.data ?? {}) as Data);
+    placeId = normalized.placeId;
+    placeDoc = normalized.doc as unknown as Record<string, unknown>;
+  } catch (e) {
+    throw new HttpsError('invalid-argument', (e as Error).message);
+  }
+
+  const artistIds = placeDoc.artistIds as string[];
+  if (artistIds.length > 0) {
+    const snaps = await db.getAll(...artistIds.map((id) => db.doc(`artists/${id}`)));
+    const missing = snaps.filter((s) => !s.exists).map((s) => s.id);
+    if (missing.length > 0) throw new HttpsError('not-found', `없는 아티스트다: ${missing.join(', ')}`);
+  }
+
+  const { lat, lng, ...rest } = placeDoc as { lat: number; lng: number; [k: string]: unknown };
+  const ref = placeId ? db.doc(`places/${placeId}`) : db.collection('places').doc();
+  const existed = placeId ? (await ref.get()).exists : false;
+  if (placeId && !existed) throw new HttpsError('not-found', `없는 장소다: ${placeId}`);
+  await ref.set(
+    { ...rest, location: new GeoPoint(lat, lng), ...(existed ? {} : { createdAt: FieldValue.serverTimestamp() }) },
+    { merge: true },
+  );
+  return { placeId: ref.id, created: !existed };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -748,4 +829,32 @@ export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) =>
   }
 
   return { ...route, stops: stops.map((s, i) => ({ placeId: placeIds[i], name: s.name, ...s.at })) };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// syncGalleryOnVisibility — 갤러리가 티켓의 공개 여부를 따라가게 한다
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * issueTicket 은 공개 티켓만 갤러리에 적는다. 이후 사용자가 공개⇄비공개를 바꿔도 그때는
+ * 갤러리를 손대지 않아서, 비공개로 내린 사진이 장소/상세에 계속 남고 공개로 올린 사진은
+ * 영원히 나타나지 않았다. 갤러리 문서 id 를 티켓 id 와 같게 둬서(issueTicket 참고)
+ * 쿼리 없이 존재 여부만으로 만들고 지운다.
+ */
+export const syncGalleryOnVisibility = onDocumentUpdated('tickets/{ticketId}', async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
+  if (!before || !after || before.visibility === after.visibility) return;
+
+  const galleryRef = db.doc(`places/${after.placeId}/gallery/${event.params.ticketId}`);
+  if (after.visibility === 'public') {
+    await galleryRef.set({
+      ticketId: event.params.ticketId,
+      authorId: after.userId,
+      photoUrl: after.photoUrl,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } else {
+    await galleryRef.delete();
+  }
 });

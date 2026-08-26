@@ -217,3 +217,132 @@ export function normalizeBoard(input: BoardInput): { boardId: string; doc: Board
   };
   return { boardId, doc };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 아티스트
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ArtistInput {
+  artistId?: unknown;
+  name?: unknown;
+  initial?: unknown;
+  imageUrl?: unknown;
+  accentColor?: unknown;
+}
+
+export interface ArtistDoc {
+  name: { ko: string; en: string };
+  initial?: string;
+  imageUrl?: string;
+  accentColor?: string;
+}
+
+/**
+ * 아이돌 게시판은 존재하는 artistId 를 요구한다 (normalizeBoard). 그 존재를 만드는 게
+ * 이 함수다 — 없으면 관리 도구에서 이름도 못 적고 아이돌 게시판을 만들 수 없었다.
+ */
+export function normalizeArtist(input: ArtistInput): { artistId: string; doc: ArtistDoc } {
+  const artistId = input.artistId;
+  if (typeof artistId !== 'string' || !BOARD_ID_RE.test(artistId)) {
+    throw new Error('artistId 는 [A-Za-z0-9_-] 1~64자다');
+  }
+
+  const initial = input.initial;
+  if (initial !== undefined && (typeof initial !== 'string' || initial.trim() === '')) {
+    throw new Error('initial 은 빈 문자열일 수 없다');
+  }
+  const imageUrl = input.imageUrl;
+  if (imageUrl !== undefined && typeof imageUrl !== 'string') throw new Error('imageUrl 은 문자열이다');
+  const accentColor = input.accentColor;
+  if (accentColor !== undefined && (typeof accentColor !== 'string' || !HEX_COLOR_RE.test(accentColor))) {
+    throw new Error('accentColor 는 #RRGGBB 다');
+  }
+
+  const doc: ArtistDoc = {
+    name: localized(input.name, 'name', true) as { ko: string; en: string },
+    ...(initial !== undefined && { initial: initial.trim() }),
+    ...(imageUrl !== undefined && { imageUrl }),
+    ...(accentColor !== undefined && { accentColor }),
+  };
+  return { artistId, doc };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 촬영지 (ticket location)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PlaceInput {
+  placeId?: unknown;
+  name?: unknown;
+  address?: unknown;
+  lat?: unknown;
+  lng?: unknown;
+  radiusMeters?: unknown;
+  coverImageUrl?: unknown;
+  artistIds?: unknown;
+  description?: unknown;
+}
+
+export interface PlaceDoc {
+  name: { ko: string; en: string };
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  artistIds: string[];
+  address?: string;
+  coverImageUrl?: string;
+  description?: { ko: string; en: string };
+}
+
+/**
+ * 관리 도구가 보낸 촬영지 입력을 정규화한다. artistIds 존재 확인은 호출부가 한다 — 읽기가
+ * 필요해서다. placeId 가 없으면 새 문서다 — TourAPI 적재본과 달리 사람이 붙인 slug 를
+ * 의미로 쓰는 곳이 없어 auto id 로 충분하다.
+ */
+export function normalizePlace(input: PlaceInput): { placeId: string | undefined; doc: PlaceDoc } {
+  const placeId = input.placeId;
+  if (placeId !== undefined && (typeof placeId !== 'string' || !BOARD_ID_RE.test(placeId))) {
+    throw new Error('placeId 는 [A-Za-z0-9_-] 1~64자다');
+  }
+
+  const lat = input.lat;
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error('lat 은 -90~90 숫자다');
+  }
+  const lng = input.lng;
+  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new Error('lng 는 -180~180 숫자다');
+  }
+
+  const radiusMeters = input.radiusMeters === undefined ? DEFAULT_RADIUS_M : input.radiusMeters;
+  if (typeof radiusMeters !== 'number' || !Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    throw new Error('radiusMeters 는 양수다');
+  }
+
+  const artistIds = input.artistIds === undefined ? [] : input.artistIds;
+  if (!Array.isArray(artistIds) || artistIds.some((id) => typeof id !== 'string' || !BOARD_ID_RE.test(id))) {
+    throw new Error('artistIds 는 문자열 배열이다');
+  }
+
+  const address = input.address;
+  if (address !== undefined && (typeof address !== 'string' || address.trim() === '')) {
+    throw new Error('address 는 빈 문자열일 수 없다');
+  }
+  const coverImageUrl = input.coverImageUrl;
+  if (coverImageUrl !== undefined && typeof coverImageUrl !== 'string') {
+    throw new Error('coverImageUrl 은 문자열이다');
+  }
+
+  const description = localized(input.description, 'description', false);
+  const doc: PlaceDoc = {
+    name: localized(input.name, 'name', true) as { ko: string; en: string },
+    lat,
+    lng,
+    radiusMeters,
+    artistIds: artistIds as string[],
+    ...(address !== undefined && { address: address.trim() }),
+    ...(coverImageUrl !== undefined && { coverImageUrl }),
+    ...(description && { description }),
+  };
+  return { placeId, doc };
+}

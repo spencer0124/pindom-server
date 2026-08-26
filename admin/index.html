@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>PINDOM 관리 · 게시판</title>
+<title>PINDOM 관리</title>
 <style>
   :root {
     color-scheme: dark;
@@ -19,7 +19,8 @@
   }
   main { max-width: 880px; margin: 0 auto; }
   h1 { font-size: 20px; margin: 0 0 4px; }
-  h2 { font-size: 15px; margin: 32px 0 12px; color: var(--dim); font-weight: 600; }
+  h2 { font-size: 15px; margin: 40px 0 12px; color: var(--dim); font-weight: 600; }
+  section:first-of-type h2 { margin-top: 32px; }
   .sub { color: var(--dim); margin: 0 0 24px; }
   button {
     font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
@@ -43,6 +44,12 @@
   }
   label.check { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   label.check input { margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+  .chips label {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 5px; margin: 0;
+    padding: 5px 9px; background: #0d0d0f; border: 1px solid var(--line); border-radius: 999px;
+  }
+  .chips input { margin: 0; }
   .msg { margin-top: 12px; min-height: 20px; }
   .msg.bad { color: var(--bad); }
   .msg.good { color: var(--accent); }
@@ -51,8 +58,8 @@
 </head>
 <body>
 <main>
-  <h1>PINDOM 관리 · 게시판</h1>
-  <p class="sub">아이돌 게시판을 추가하고 이름·색·순서를 고친다. 자유게시판은 고정이다.</p>
+  <h1>PINDOM 관리</h1>
+  <p class="sub">아티스트·게시판·촬영지를 추가하고 고친다. 어느 것도 여기서 지울 수는 없다 — 다른 문서가 id 로 매달려 있어서다.</p>
 
   <div id="gate">
     <button id="signIn" class="primary">Google 로 로그인</button>
@@ -62,46 +69,115 @@
   <div id="app" class="hidden">
     <p class="sub"><span id="who"></span> · <button id="signOut">로그아웃</button></p>
 
-    <h2>게시판</h2>
-    <table>
-      <thead><tr><th>id</th><th>이름</th><th>종류</th><th>순서</th><th>상태</th><th></th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
+    <section>
+      <h2>아티스트</h2>
+      <table>
+        <thead><tr><th>id</th><th>이름</th><th></th></tr></thead>
+        <tbody id="artistRows"></tbody>
+      </table>
+      <h2 id="artistFormTitle">아티스트 추가</h2>
+      <form id="artistForm">
+        <div class="row">
+          <label>id (수정 시 고정)<input id="artistId" placeholder="artist-lumina" required></label>
+          <label>이니셜 (선택)<input id="artistInitial" placeholder="LM" maxlength="4"></label>
+          <label>강조색 (선택)<input id="artistAccentColor" placeholder="#58CF04"></label>
+        </div>
+        <div class="row">
+          <label>이름 (한국어)<input id="artistNameKo" required></label>
+          <label>이름 (영어)<input id="artistNameEn" required></label>
+        </div>
+        <div class="row">
+          <label>프로필 이미지 URL (선택)<input id="artistImageUrl" placeholder="https://..."></label>
+        </div>
+        <div class="row">
+          <button class="primary" id="artistSave" type="submit">저장</button>
+          <button type="button" id="artistReset">새로 작성</button>
+        </div>
+        <p class="msg" id="artistMsg"></p>
+      </form>
+    </section>
 
-    <h2 id="formTitle">게시판 추가</h2>
-    <form id="form">
-      <div class="row">
-        <label>종류
-          <select id="kind">
-            <option value="artist">아이돌 게시판</option>
-            <option value="free">자유게시판</option>
-          </select>
-        </label>
-        <label id="artistField">아이돌
-          <select id="artistId"></select>
-        </label>
-        <label>순서 (작을수록 위)
-          <input id="order" type="number" step="10" value="0">
-        </label>
-      </div>
-      <div class="row">
-        <label>이름 (한국어)<input id="nameKo" required></label>
-        <label>이름 (영어)<input id="nameEn" required></label>
-      </div>
-      <div class="row">
-        <label>설명 (한국어, 선택)<input id="descKo"></label>
-        <label>설명 (영어, 선택)<input id="descEn"></label>
-        <label>강조색 (선택)<input id="accentColor" placeholder="#58CF04"></label>
-      </div>
-      <div class="row">
-        <label class="check"><input id="archived" type="checkbox"> 목록에서 내림 (보관)</label>
-      </div>
-      <div class="row">
-        <button class="primary" id="save" type="submit">저장</button>
-        <button type="button" id="reset">새로 작성</button>
-      </div>
-      <p class="msg" id="msg"></p>
-    </form>
+    <section>
+      <h2>게시판</h2>
+      <table>
+        <thead><tr><th>id</th><th>이름</th><th>종류</th><th>순서</th><th>상태</th><th></th></tr></thead>
+        <tbody id="boardRows"></tbody>
+      </table>
+
+      <h2 id="boardFormTitle">게시판 추가</h2>
+      <form id="boardForm">
+        <div class="row">
+          <label>종류
+            <select id="kind">
+              <option value="artist">아이돌 게시판</option>
+              <option value="free">자유게시판</option>
+            </select>
+          </label>
+          <label id="boardArtistField">아이돌
+            <select id="boardArtistId"></select>
+          </label>
+          <label>순서 (작을수록 위)
+            <input id="order" type="number" step="10" value="0">
+          </label>
+        </div>
+        <div class="row">
+          <label>이름 (한국어)<input id="nameKo" required></label>
+          <label>이름 (영어)<input id="nameEn" required></label>
+        </div>
+        <div class="row">
+          <label>설명 (한국어, 선택)<input id="descKo"></label>
+          <label>설명 (영어, 선택)<input id="descEn"></label>
+          <label>강조색 (선택)<input id="accentColor" placeholder="#58CF04"></label>
+        </div>
+        <div class="row">
+          <label class="check"><input id="archived" type="checkbox"> 목록에서 내림 (보관)</label>
+        </div>
+        <div class="row">
+          <button class="primary" id="save" type="submit">저장</button>
+          <button type="button" id="reset">새로 작성</button>
+        </div>
+        <p class="msg" id="msg"></p>
+      </form>
+    </section>
+
+    <section>
+      <h2>촬영지 (티켓 발급 장소)</h2>
+      <table>
+        <thead><tr><th>id</th><th>이름</th><th>반경</th><th>연결 아티스트</th><th></th></tr></thead>
+        <tbody id="placeRows"></tbody>
+      </table>
+
+      <h2 id="placeFormTitle">촬영지 추가</h2>
+      <form id="placeForm">
+        <div class="row">
+          <label>이름 (한국어)<input id="placeNameKo" required></label>
+          <label>이름 (영어)<input id="placeNameEn" required></label>
+        </div>
+        <div class="row">
+          <label>위도<input id="placeLat" type="number" step="0.000001" required></label>
+          <label>경도<input id="placeLng" type="number" step="0.000001" required></label>
+          <label>인증 반경 (m)<input id="placeRadius" type="number" step="1" value="50" required></label>
+        </div>
+        <div class="row">
+          <label>주소 (선택)<input id="placeAddress"></label>
+          <label>커버 이미지 URL (선택)<input id="placeCoverImageUrl" placeholder="https://..."></label>
+        </div>
+        <div class="row">
+          <label>설명 (한국어, 선택)<input id="placeDescKo"></label>
+          <label>설명 (영어, 선택)<input id="placeDescEn"></label>
+        </div>
+        <div class="row">
+          <label style="flex-basis: 100%">연결 아티스트 (선택)
+            <div class="chips" id="placeArtistChips"></div>
+          </label>
+        </div>
+        <div class="row">
+          <button class="primary" id="placeSave" type="submit">저장</button>
+          <button type="button" id="placeReset">새로 작성</button>
+        </div>
+        <p class="msg" id="placeMsg"></p>
+      </form>
+    </section>
   </div>
 </main>
 
@@ -125,6 +201,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
 const app = initializeApp(await (await fetch('/__/firebase/init.json')).json());
 const auth = getAuth(app);
@@ -138,10 +215,13 @@ if (local) {
   connectFunctionsEmulator(fns, '127.0.0.1', 5001);
 }
 
+const saveArtist = httpsCallable(fns, 'saveArtist');
 const saveBoard = httpsCallable(fns, 'saveBoard');
+const savePlace = httpsCallable(fns, 'savePlace');
 
 let artists = [];
 let boards = [];
+let places = [];
 
 // ── 로그인 ────────────────────────────────────────────────────────────────────
 
@@ -172,19 +252,41 @@ onAuthStateChanged(auth, async (user) => {
 // ── 목록 ──────────────────────────────────────────────────────────────────────
 
 async function load() {
-  const [artistSnap, boardSnap] = await Promise.all([
-    getDocs(collection(db, 'artists')),
+  const [artistSnap, boardSnap, placeSnap] = await Promise.all([
+    getDocs(query(collection(db, 'artists'), orderBy('name.ko'))),
     getDocs(query(collection(db, 'boards'), orderBy('order'))),
+    getDocs(collection(db, 'places')),
   ]);
   artists = artistSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   boards = boardSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  places = placeSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  $('artistId').innerHTML = artists
+  renderArtists();
+  renderBoards();
+  renderPlaces();
+}
+
+function renderArtists() {
+  $('artistRows').innerHTML = artists.map((a) => `
+    <tr>
+      <td class="id">${esc(a.id)}</td>
+      <td>${HEX_COLOR_RE.test(a.accentColor ?? '') ? `<span class="swatch" style="background:${a.accentColor}"></span> ` : ''}${esc(a.name?.ko ?? '')}</td>
+      <td><button type="button" data-edit="${esc(a.id)}">수정</button></td>
+    </tr>`).join('');
+  for (const btn of $('artistRows').querySelectorAll('[data-edit]')) {
+    btn.onclick = () => editArtist(artists.find((a) => a.id === btn.dataset.edit));
+  }
+
+  // 게시판 폼의 아티스트 선택, 촬영지 폼의 연결 아티스트 체크박스 — 둘 다 여기서만 채운다.
+  $('boardArtistId').innerHTML = artists
     .map((a) => `<option value="${esc(a.id)}">${esc(a.name?.ko ?? a.id)}</option>`)
     .join('');
+  $('placeArtistChips').innerHTML = artists.map((a) => `
+    <label><input type="checkbox" value="${esc(a.id)}"> ${esc(a.name?.ko ?? a.id)}</label>`).join('');
+}
 
-  const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
-  $('rows').innerHTML = boards.map((b) => `
+function renderBoards() {
+  $('boardRows').innerHTML = boards.map((b) => `
     <tr class="${b.archived ? 'archived' : ''}">
       <td class="id">${esc(b.id)}</td>
       <td>${HEX_COLOR_RE.test(b.accentColor ?? '') ? `<span class="swatch" style="background:${b.accentColor}"></span> ` : ''}${esc(b.name?.ko ?? '')}</td>
@@ -193,28 +295,89 @@ async function load() {
       <td>${b.archived ? '보관' : '노출'}</td>
       <td><button type="button" data-edit="${esc(b.id)}">수정</button></td>
     </tr>`).join('');
-
-  for (const btn of $('rows').querySelectorAll('[data-edit]')) {
-    btn.onclick = () => edit(boards.find((b) => b.id === btn.dataset.edit));
+  for (const btn of $('boardRows').querySelectorAll('[data-edit]')) {
+    btn.onclick = () => editBoard(boards.find((b) => b.id === btn.dataset.edit));
   }
 }
 
-// ── 폼 ────────────────────────────────────────────────────────────────────────
+function renderPlaces() {
+  $('placeRows').innerHTML = places.map((p) => `
+    <tr>
+      <td class="id">${esc(p.id)}</td>
+      <td>${esc(p.name?.ko ?? '')}</td>
+      <td>${Number(p.radiusMeters ?? 0)}m</td>
+      <td>${(p.artistIds ?? []).map((id) => esc(artists.find((a) => a.id === id)?.name?.ko ?? id)).join(', ')}</td>
+      <td><button type="button" data-edit="${esc(p.id)}">수정</button></td>
+    </tr>`).join('');
+  for (const btn of $('placeRows').querySelectorAll('[data-edit]')) {
+    btn.onclick = () => editPlace(places.find((p) => p.id === btn.dataset.edit));
+  }
+}
+
+// ── 아티스트 폼 ───────────────────────────────────────────────────────────────
+
+function editArtist(artist) {
+  $('artistFormTitle').textContent = `아티스트 수정 — ${artist.id}`;
+  $('artistId').value = artist.id;
+  $('artistId').disabled = true;
+  $('artistNameKo').value = artist.name?.ko ?? '';
+  $('artistNameEn').value = artist.name?.en ?? '';
+  $('artistInitial').value = artist.initial ?? '';
+  $('artistImageUrl').value = artist.imageUrl ?? '';
+  $('artistAccentColor').value = artist.accentColor ?? '';
+  $('artistMsg').textContent = '';
+  $('artistForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('artistReset').onclick = () => {
+  $('artistForm').reset();
+  $('artistId').disabled = false;
+  $('artistFormTitle').textContent = '아티스트 추가';
+  $('artistMsg').textContent = '';
+};
+
+$('artistForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const initial = $('artistInitial').value.trim();
+  const imageUrl = $('artistImageUrl').value.trim();
+  const accentColor = $('artistAccentColor').value.trim();
+  const payload = {
+    artistId: $('artistId').value.trim(),
+    name: { ko: $('artistNameKo').value.trim(), en: $('artistNameEn').value.trim() },
+    ...(initial && { initial }),
+    ...(imageUrl && { imageUrl }),
+    ...(accentColor && { accentColor }),
+  };
+  $('artistSave').disabled = true;
+  try {
+    const { data } = await saveArtist(payload);
+    $('artistMsg').textContent = `${data.artistId} ${data.created ? '추가' : '수정'} 완료`;
+    $('artistMsg').className = 'msg good';
+    await load();
+  } catch (err) {
+    $('artistMsg').textContent = err.message;
+    $('artistMsg').className = 'msg bad';
+  } finally {
+    $('artistSave').disabled = false;
+  }
+};
+
+// ── 게시판 폼 ─────────────────────────────────────────────────────────────────
 
 function syncKind() {
   const free = $('kind').value === 'free';
-  $('artistField').classList.toggle('hidden', free);
+  $('boardArtistField').classList.toggle('hidden', free);
   // 자유게시판은 하나뿐이고 보관하면 앱의 기본 탭이 사라진다. 함수도 거부한다.
   $('archived').disabled = free;
   if (free) $('archived').checked = false;
 }
 $('kind').onchange = syncKind;
 
-function edit(board) {
-  $('formTitle').textContent = `게시판 수정 — ${board.id}`;
+function editBoard(board) {
+  $('boardFormTitle').textContent = `게시판 수정 — ${board.id}`;
   $('kind').value = board.kind;
   syncKind();
-  if (board.kind === 'artist') $('artistId').value = board.id;
+  if (board.kind === 'artist') $('boardArtistId').value = board.id;
   $('nameKo').value = board.name?.ko ?? '';
   $('nameEn').value = board.name?.en ?? '';
   $('descKo').value = board.description?.ko ?? '';
@@ -223,27 +386,32 @@ function edit(board) {
   $('order').value = board.order ?? 0;
   $('archived').checked = Boolean(board.archived);
   $('msg').textContent = '';
-  $('form').scrollIntoView({ behavior: 'smooth' });
+  $('boardForm').scrollIntoView({ behavior: 'smooth' });
 }
 
 $('reset').onclick = () => {
-  $('form').reset();
-  $('formTitle').textContent = '게시판 추가';
+  $('boardForm').reset();
+  $('boardFormTitle').textContent = '게시판 추가';
   $('msg').textContent = '';
   syncKind();
 };
 
-$('form').onsubmit = async (e) => {
+$('boardForm').onsubmit = async (e) => {
   e.preventDefault();
   const kind = $('kind').value;
   const descKo = $('descKo').value.trim();
   const descEn = $('descEn').value.trim();
   const accentColor = $('accentColor').value.trim();
+  if ((descKo === '') !== (descEn === '')) {
+    $('msg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
+    $('msg').className = 'msg bad';
+    return;
+  }
 
   // ponytail: 저장은 merge 다. 설명이나 강조색을 비워 저장해도 기존 값이 지워지지는
   // 않는다. 지우기가 필요해지면 saveBoard 에 삭제할 필드 목록을 실어 보내면 된다.
   const payload = {
-    boardId: kind === 'free' ? 'free' : $('artistId').value,
+    boardId: kind === 'free' ? 'free' : $('boardArtistId').value,
     kind,
     name: { ko: $('nameKo').value.trim(), en: $('nameEn').value.trim() },
     order: Number($('order').value),
@@ -251,11 +419,6 @@ $('form').onsubmit = async (e) => {
     ...(descKo && descEn && { description: { ko: descKo, en: descEn } }),
     ...(accentColor && { accentColor }),
   };
-  if ((descKo === '') !== (descEn === '')) {
-    $('msg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
-    $('msg').className = 'msg bad';
-    return;
-  }
 
   $('save').disabled = true;
   try {
@@ -272,6 +435,75 @@ $('form').onsubmit = async (e) => {
 };
 
 syncKind();
+
+// ── 촬영지 폼 ─────────────────────────────────────────────────────────────────
+
+let editingPlaceId;
+
+function editPlace(place) {
+  editingPlaceId = place.id;
+  $('placeFormTitle').textContent = `촬영지 수정 — ${place.id}`;
+  $('placeNameKo').value = place.name?.ko ?? '';
+  $('placeNameEn').value = place.name?.en ?? '';
+  $('placeLat').value = place.location?.latitude ?? '';
+  $('placeLng').value = place.location?.longitude ?? '';
+  $('placeRadius').value = place.radiusMeters ?? 50;
+  $('placeAddress').value = place.address ?? '';
+  $('placeCoverImageUrl').value = place.coverImageUrl ?? '';
+  $('placeDescKo').value = place.description?.ko ?? '';
+  $('placeDescEn').value = place.description?.en ?? '';
+  const ids = new Set(place.artistIds ?? []);
+  for (const box of $('placeArtistChips').querySelectorAll('input')) box.checked = ids.has(box.value);
+  $('placeMsg').textContent = '';
+  $('placeForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('placeReset').onclick = () => {
+  editingPlaceId = undefined;
+  $('placeForm').reset();
+  $('placeFormTitle').textContent = '촬영지 추가';
+  $('placeMsg').textContent = '';
+};
+
+$('placeForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const descKo = $('placeDescKo').value.trim();
+  const descEn = $('placeDescEn').value.trim();
+  const address = $('placeAddress').value.trim();
+  const coverImageUrl = $('placeCoverImageUrl').value.trim();
+  const artistIds = [...$('placeArtistChips').querySelectorAll('input:checked')].map((b) => b.value);
+  if ((descKo === '') !== (descEn === '')) {
+    $('placeMsg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
+    $('placeMsg').className = 'msg bad';
+    return;
+  }
+
+  const payload = {
+    ...(editingPlaceId && { placeId: editingPlaceId }),
+    name: { ko: $('placeNameKo').value.trim(), en: $('placeNameEn').value.trim() },
+    lat: Number($('placeLat').value),
+    lng: Number($('placeLng').value),
+    radiusMeters: Number($('placeRadius').value),
+    artistIds,
+    ...(address && { address }),
+    ...(coverImageUrl && { coverImageUrl }),
+    ...(descKo && descEn && { description: { ko: descKo, en: descEn } }),
+  };
+
+  $('placeSave').disabled = true;
+  try {
+    const { data } = await savePlace(payload);
+    editingPlaceId = data.placeId;
+    $('placeMsg').textContent = `${data.placeId} ${data.created ? '추가' : '수정'} 완료`;
+    $('placeMsg').className = 'msg good';
+    await load();
+  } catch (err) {
+    $('placeMsg').textContent = err.message;
+    $('placeMsg').className = 'msg bad';
+  } finally {
+    $('placeSave').disabled = false;
+  }
+};
 </script>
 </body>
 </html>

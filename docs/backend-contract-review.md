@@ -829,6 +829,33 @@ Storage 에서 `read` 는 `get` 과 `list` 를 함께 뜻한다. 열어두면 �
 촬영지 탭은 아직 없다. 지도에서 핀을 찍는 부분이 남아 있고, 트리거(주 단위 추가·다른 사람의
 추가)는 그대로 유효하다.
 
+## 12. Integration Open Items (08-26) 회신
+
+앱 레포의 `2026-08-26 Integration Open Items` 아홉 건 중 코드로 답할 수 있는 여섯을 고쳤다.
+나머지 셋은 판단만 남았다.
+
+### 고쳤다
+
+| # | 내용 |
+| --- | --- |
+| 1 | 갤러리가 공개 전환을 따라간다. `issueTicket` 이 갤러리 문서 id 를 티켓 id 와 같게 쓰고, `tickets` 의 `visibility` 변경에 붙는 트리거(`syncGalleryOnVisibility`)가 공개로 바뀌면 만들고 비공개로 바뀌면 지운다. 쿼리가 필요 없다 — id 가 곧 주소다 |
+| 2 | README 의 전체 테스트 명령에 `--project pindom-fn-test` 를 붙였다. 없으면 콜러블 URL 의 프로젝트 id 가 `.firebaserc` 걸로 뜨는데 `functions.test.mjs` 는 `pindom-fn-test` 로 접속을 시도해 열두 건이 `functions/not-found` 로 실패한다 |
+| 3 | `verifyLocation` 이 판정을 통과할 때마다 `places.verifyCount` 를 올린다. `issueTicket` 이 아니라 여기인 이유는, 그랜트를 받고 티켓을 안 받는 경우가 있고 이 숫자는 "실제로 온 사람" 이지 발행 수가 아니라서다 |
+| 4 | `artists.memberCount` 를 시드에서 뺐다. 앱이 이미 안 읽으니 쓰는 쪽도 정리 — 나중에 누가 이 필드를 보고 "채워야겠다" 고 만들 계기를 없앤다 |
+| 8 | README 가 `Java 21 이상` 이라고 명시한다. `openjdk` 만 적으면 포뮬러 버전이 바뀔 때마다 다시 틀린다 |
+| 9 | `verifyLocation` 에 `minInstances: 1`. 촬영지 앞에서 결과를 기다리는 화면이 콜드 스타트를 맞는 게 제일 나쁜 자리다 |
+
+### 판단만 남았다
+
+| # | 내용 | 이 레포의 입장 |
+| --- | --- | --- |
+| 5 | `placeName` 을 한국어만 비정규화 | 의도한 선택 그대로 둔다. 앱 쪽 글 pin 라벨도 같은 방식이라 어긋나진 않는다. 맵을 저장하고 읽을 때 풀면 더 정확하지만 이미 문서가 있는 컬렉션의 필드 타입을 바꾸는 일이라 공모전 전엔 손 안 댄다 |
+| 6 | 마감 지난 래플이 `status: closed` 로 안 넘어감 | `enterRaffle` 은 이미 `closesAt` 을 보고 거부하므로 기능은 안 깨진다. `status` 만 보는 소비자(관리 화면·export)가 생기면 스케줄 함수를 붙인다 — 지금은 없다 |
+| 7 | `askAssistant` not deployed | 로컬엔 이미 있다(챗봇 함수, 이번 브랜치에 커밋됨). 배포된 origin 에만 없다 — `firebase deploy` 가 남았다. 공모전 스코프에 들어가는지 확인되면 그때 배포한다 |
+
+`verifyCount`·갤러리 동기화는 필드/트리거 추가라 배포해야 반영된다. 로컬 커밋에는 있고
+아직 origin 에 안 나갔다 — 위 문서 [connect-the-app-to-firebase.md](../how-to/connect-the-app-to-firebase.md) 재현 체크는 배포 이후에 다시 돌려야 한다.
+
 ## 남은 것
 
 앱 쪽 회신이 없어도 Phase 4 를 진행할 수 있다. 위 판단 중 이견이 있는 항목만 알려주면 된다.

@@ -16,7 +16,9 @@ import {
   impliedSpeedKmh,
   isImplausibleJump,
   mintSerial,
+  normalizeArtist,
   normalizeBoard,
+  normalizePlace,
   tierFor,
 } from '../lib/logic.js';
 
@@ -132,5 +134,55 @@ describe('normalizeBoard', () => {
     assert.throws(() => normalizeBoard({ ...artist, boardId: 'a/b' }));
     assert.throws(() => normalizeBoard({ ...artist, accentColor: 'green' }));
     assert.equal(normalizeBoard({ ...artist, accentColor: '#58CF04' }).doc.accentColor, '#58CF04');
+  });
+});
+
+describe('normalizeArtist', () => {
+  const input = { artistId: 'artist-lumina', name: { ko: '루미나', en: 'Lumina' } };
+
+  it('아이디와 이름만으로 만들어진다', () => {
+    const { artistId, doc } = normalizeArtist(input);
+    assert.equal(artistId, 'artist-lumina');
+    assert.deepEqual(doc, { name: { ko: '루미나', en: 'Lumina' } });
+  });
+
+  it('선택 필드는 있으면 형식을 본다', () => {
+    assert.throws(() => normalizeArtist({ ...input, accentColor: 'green' }));
+    assert.throws(() => normalizeArtist({ ...input, initial: ' ' }));
+    assert.equal(normalizeArtist({ ...input, initial: 'LM' }).doc.initial, 'LM');
+  });
+
+  it('아이디는 형식을 본다', () => {
+    assert.throws(() => normalizeArtist({ ...input, artistId: 'a/b' }));
+  });
+});
+
+describe('normalizePlace', () => {
+  const input = { name: { ko: '주문진 방파제', en: 'Jumunjin' }, lat: 37.88, lng: 128.83 };
+
+  it('placeId 가 없으면 새 문서 취급, 반경은 기본값이 채워진다', () => {
+    const { placeId, doc } = normalizePlace(input);
+    assert.equal(placeId, undefined);
+    assert.equal(doc.radiusMeters, 50);
+    assert.deepEqual(doc.artistIds, []);
+  });
+
+  it('placeId 를 주면 그대로 돌려준다', () => {
+    assert.equal(normalizePlace({ ...input, placeId: 'place-jumunjin' }).placeId, 'place-jumunjin');
+  });
+
+  it('좌표는 범위를 본다', () => {
+    assert.throws(() => normalizePlace({ ...input, lat: 91 }));
+    assert.throws(() => normalizePlace({ ...input, lng: -181 }));
+  });
+
+  it('artistIds 는 문자열 배열이어야 한다', () => {
+    assert.throws(() => normalizePlace({ ...input, artistIds: ['artist-lumina', 1] }));
+    assert.deepEqual(normalizePlace({ ...input, artistIds: ['artist-lumina'] }).doc.artistIds, ['artist-lumina']);
+  });
+
+  it('radiusMeters 는 양수다', () => {
+    assert.throws(() => normalizePlace({ ...input, radiusMeters: 0 }));
+    assert.throws(() => normalizePlace({ ...input, radiusMeters: -5 }));
   });
 });

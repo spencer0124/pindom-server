@@ -25,8 +25,8 @@ firebase login
 npm --prefix functions install
 ```
 
-에뮬레이터는 Java 를 쓴다. 없으면 `brew install openjdk` 후 PATH 에 추가한다 —
-`export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"`.
+에뮬레이터는 Java 21 이상을 쓴다. `firebase-tools` 가 그 아래 버전은 시작을 거부한다.
+없으면 `brew install openjdk` 후 PATH 에 추가한다 — `export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"`.
 
 Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드는 되지만 배포 시
 런타임과 어긋날 수 있다.
@@ -40,7 +40,7 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | `firebase deploy --only storage` | Storage 규칙만 배포 |
 | `firebase deploy --only hosting` | 관리 도구만 배포 |
 | `node --test functions/test/logic.test.mjs functions/test/import-tourapi.test.mjs` | 순수 로직 테스트 (에뮬레이터 불필요) |
-| `firebase emulators:exec --only auth,firestore,storage,functions "node --test functions/test/*.test.mjs"` | 전체 테스트. **레포 루트에서** 돌린다 — `rules.test.mjs` 가 `firestore.rules` 를 cwd 기준으로 읽는다 |
+| `firebase emulators:exec --project pindom-fn-test --only auth,firestore,storage,functions "node --test functions/test/*.test.mjs"` | 전체 테스트. **레포 루트에서** 돌린다 — `rules.test.mjs` 가 `firestore.rules` 를 cwd 기준으로 읽는다. `--project` 를 빼면 콜러블 URL 의 프로젝트 id 가 어긋나 열두 건이 `functions/not-found` 로 실패한다 — 함수가 없는 게 아니라 주소가 틀린 것이다 |
 | `npm --prefix functions run import-tourapi -- --dry-run` | TourAPI 에서 촬영지 정보를 받아 `seed-data.json` 을 채운다. 키는 `.env.local` |
 | `firebase deploy --only functions` | 함수만 배포 |
 | `firebase deploy` | 전체 배포 |
