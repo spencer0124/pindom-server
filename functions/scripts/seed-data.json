@@ -58,10 +58,9 @@
       "lat": 37.8796220881,
       "lng": 128.8335906768,
       "radiusMeters": 50,
-      "coverImageUrl": "http://tong.visitkorea.or.kr/cms/resource/81/2656581_image2_1.jpg",
+      "coverImageUrl": "https://picsum.photos/seed/jumunjin/1200/800",
       "contentId": "131271",
       "contentIdEn": "2992466",
-      "coverImageLicense": "Type3",
       "overview": {
         "ko": "주문진 방파제는 드라마 촬영지로 유명해졌다. 등장인물들이 처음 만나는 장소로 등장한 방파제는 여전히 드라마 속 멋진 풍광을 그대로 간직하고 있다. 이곳을 찾은 사람들은 드라마의 장면을 따라 하며 주인공이 된 듯한 기분을 만끽한다. 주문진 방파제는 동방파제와 서방파제로 이루어져 있다. 동방파제는 1㎞이고 서방파제는 200m로 되어있다. 봄부터 9월까지는 가자미낚시가 이어지고 10월에 들어서는 노래미, 학꽁치, 우럭이 나온다. 11월 이후부터 3월까지는 숭어와 황어가 주어종이 된다. 최고의 시즌은 10월부터 3월까지이다.",
         "en": "Jumunjin Breakwater was made famous as the filming site of the show “Guardian: The Lonely and Great God (2016).” Serving as the backdrop of the two leads’ fateful first meeting, the breakwater still retains its beautiful scenery. Many visitors recreate the scene from their favorite show here. The breakwater itself is divided into the east and the west parts. The eastern breakwater is 1 kilometer, while the western breakwater is 200 meters long. One can fish for plaice from spring to September, while spotty belly greenling, spipefish, and rockfish can be found in October. From December to March, grey mullet and big-scaled redfin become the main species caught here. The best season to fish here is between October and March."
@@ -94,10 +93,9 @@
       "lat": 35.0974606978369,
       "lng": 129.010596996534,
       "radiusMeters": 50,
-      "coverImageUrl": "https://tong.visitkorea.or.kr/cms/resource/91/3365491_image2_1.jpg",
+      "coverImageUrl": "https://picsum.photos/seed/gamcheon/1200/800",
       "contentId": "1997221",
       "contentIdEn": "1998211",
-      "coverImageLicense": "Type3",
       "openHours": {
         "ko": "상시 개방"
       },
@@ -207,10 +205,9 @@
       "lat": 37.445948,
       "lng": 126.372722,
       "radiusMeters": 50,
-      "coverImageUrl": "https://tong.visitkorea.or.kr/cms/resource/78/3518478_image2_1.jpg",
+      "coverImageUrl": "https://picsum.photos/seed/eurwangni/1200/800",
       "contentId": "128767",
       "contentIdEn": "264514",
-      "coverImageLicense": "Type1",
       "openHours": {
         "ko": "상시 개방"
       },

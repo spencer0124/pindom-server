@@ -137,16 +137,10 @@ describe('mergePlace', () => {
     assert.deepEqual(next.closedDays, { ko: '연중무휴' });
   });
 
-  it('커버 이미지를 받으면 저작권 유형을 함께 남긴다', () => {
+  it('공사 사진은 받지 않는다', () => {
     const next = mergePlace(PLACE, { ko: KO, en: EN, intro: INTRO });
-    assert.equal(next.coverImageUrl, KO.firstimage);
-    assert.equal(next.coverImageLicense, 'Type3');
-  });
-
-  it('firstimage 가 비면 있던 커버를 지우지 않는다', () => {
-    const next = mergePlace(PLACE, { ko: { ...KO, firstimage: '', cpyrhtDivCd: '' }, en: EN, intro: INTRO });
+    // 응답에 firstimage 가 있어도 커버는 우리 것이 남고 저작권 필드도 생기지 않는다.
     assert.equal(next.coverImageUrl, PLACE.coverImageUrl);
-    // 우리 이미지에 공사 저작권을 붙이면 잘못된 출처 표시가 뜬다.
     assert.equal(next.coverImageLicense, undefined);
   });
 

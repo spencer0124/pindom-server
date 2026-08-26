@@ -23,7 +23,7 @@ const COMMON = { MobileOS: 'ETC', MobileApp: 'Pindom', _type: 'json' };
 // 우리 설명은 "자물쇠 벽 앞이 인증샷 포인트" 처럼 촬영하러 가는 사람에게 필요한 말이다.
 // 공사 개요는 overview 로 따로 받아 더 자세한 설명 보기에 넣는다.
 const OURS = ['id', 'contentId', 'contentIdEn', 'artistIds', 'workTitle', 'workKind',
-  'radiusMeters', 'region', 'roman', 'description'];
+  'radiusMeters', 'region', 'roman', 'description', 'coverImageUrl'];
 
 // 영문 개요는 &ldquo; &rsquo; 같은 타이포그래피 엔티티를 그대로 보낸다. 화면에 날문자가
 // 뜨는 자리라 여기서 되돌린다. Node 에 HTML 엔티티 디코더가 없어 쓰는 것만 적는다.
@@ -98,11 +98,8 @@ export function mergePlace(place, { ko, en, intro }) {
       next.lng = lng;
     }
 
-    if (ko.firstimage) {
-      next.coverImageUrl = ko.firstimage;
-      // 공공누리 유형. Type3 은 출처표시 + 변경금지라 앱이 가공하면 안 된다.
-      if (ko.cpyrhtDivCd) next.coverImageLicense = ko.cpyrhtDivCd;
-    }
+    // firstimage 는 받지 않는다. 공사 사진을 쓰지 않기로 했고, 쓰지 않을 이미지에
+    // 공공누리 출처 표시 의무만 지고 갈 이유가 없다. 커버는 자체 컷으로 채운다.
   }
 
   if (en) {

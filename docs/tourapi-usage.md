@@ -160,9 +160,9 @@ GET https://apis.data.go.kr/B551011/KorService2/detailCommon2
 | `addr1` (+ `addr2`) | `address` | `addr2` 가 있으면 공백으로 이어 붙인다 |
 | `mapx` | `location` 의 **경도** | WGS84 |
 | `mapy` | `location` 의 **위도** | WGS84 |
-| `firstimage` | `coverImageUrl` | 원본 약 500×333. **빈 값이면 기존 값을 유지**한다 |
+| `firstimage` | — | **안 받는다.** 공사 사진을 쓰지 않기로 했다 — §7 |
 | `firstimage2` | — | 썸네일 150×100. 안 쓴다 |
-| `cpyrhtDivCd` | — | 저작권 유형. §7 |
+| `cpyrhtDivCd` | — | 저작권 유형. 사진을 안 받으므로 쓸 일이 없다 — §7 |
 | `contentid` | `contentId` | 요청한 값과 같은지 확인용 |
 | `contenttypeid` | — | **`detailIntro2` 호출에 그대로 넘긴다** |
 | `modifiedtime` | — | 콘텐츠 수정일 |
@@ -243,10 +243,7 @@ GET https://apis.data.go.kr/B551011/KorService2/detailIntro2
 | `roman` | 라틴 캡션 |
 | 모든 카운터 | `ticketCount` · `verifyCount` · `photoCount` · `reviewCount` 는 함수 소유 |
 
-`coverImageUrl` 은 이 표에 없다. **공사에 이미지가 있으면 공사 것이 이긴다.** 자체 촬영 컷으로
-갈아끼우려면 이 스크립트가 그 장소를 덮지 않게 해야 하는데, 지금은 그런 장치가 없다 — 자체 컷을
-쓰기 시작하는 날 `coverImageUrl` 도 사람 소유 목록으로 옮긴다. 그전까지는 공사가 빈 값을 준
-장소에서만 우리 이미지가 남는다.
+| `coverImageUrl` | 자체 컷. 공사 사진은 받지 않는다 — §7 |
 
 ---
 
@@ -310,29 +307,19 @@ Firestore 에 쓰는 경로를 새로 만들지 않는다. `scripts/seed.mjs` �
 
 ---
 
-## 7. 이미지와 저작권
+## 7. 이미지 — 받지 않는다
 
-`detailCommon2` 의 `firstimage` 와 `detailImage2` 의 `originimgurl` 에는 **`cpyrhtDivCd`**
-저작권 유형이 붙는다.
+**공사 사진을 쓰지 않기로 했다.** `detailCommon2` 의 `firstimage` 도, `detailImage2` 도
+호출하지 않는다. `coverImageUrl` 은 사람이 채우는 필드다.
 
-| 값 | 의미 |
-| --- | --- |
-| `Type1` | 제1유형 — 출처표시 (권장) |
-| `Type3` | 제3유형 — 제1유형 + **변경금지** |
+이유는 저작권이다. 공사 이미지에는 `cpyrhtDivCd` 가 붙는다 — `Type1` 은 출처 표시,
+`Type3` 은 거기에 더해 **가공 금지**다. 크롭·필터·오버레이가 걸린다. 커버 이미지는 화면
+비율에 맞춰 잘리는 자리라 `Type3` 과 맞지 않고, 쓰지 않을 이미지 때문에 모든 장소 상세에
+출처 표시 자리를 만들 이유도 없다.
 
-`coverImageUrl` 로 공사 이미지를 쓰면 **출처를 표시한다.** `Type3` 은 거기에 더해 가공이
-금지돼 크롭·필터·오버레이를 걸 수 없다.
-
-그래서 적재 시 `coverImageUrl` 을 공사 이미지로 채울 때 **`coverImageLicense` 에
-`cpyrhtDivCd` 를 함께 남긴다.** 나중에 자체 컷으로 갈아끼우면 이 필드가 없어지고, 그때는
-출처 표시도 사라져야 한다 — 우리 사진에 공사 출처를 붙이면 그것도 틀린 표시다.
-필드가 있으면 장소/상세가 "한국관광공사" 를 표기하고, `Type3` 이면 이미지에 손대지 않는다.
-
-`detailImage2` 를 쓰지 않는 이유는 별개다. `places/{placeId}/gallery` 는 `issueTicket` 이
-쓰는 **인증한 사용자의 사진 벽**이다. 공사 사진을 같은 컬렉션에 섞으면 "인증한 사람만 올린
-벽" 이라는 성질 자체가 사라진다. 공사 사진이 필요해지면 별도 필드로 받는다.
-
----
+`detailImage2` 는 그와 별개로도 안 쓴다. `places/{placeId}/gallery` 는 `issueTicket` 이
+쓰는 **인증한 사용자의 사진 벽**이고, 공사 사진을 같은 컬렉션에 섞으면 "인증한 사람만 올린
+벽" 이라는 성질 자체가 사라진다.
 
 ## 8. 코드 체계
 
