@@ -17,6 +17,9 @@ serviceAccountKey.json
 .env.local
 .env.*.local
 
+# 에뮬레이터가 로컬에서 Secret Manager 값을 읽는 자리
+functions/.secret.local
+
 # 빌드 산출물
 functions/lib/
 

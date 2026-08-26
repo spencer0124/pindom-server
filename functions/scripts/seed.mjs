@@ -4,7 +4,7 @@
  *   에뮬레이터:  npm --prefix functions run seed
  *   실제 프로젝트: npm --prefix functions run seed -- --project pindom-xxxx --yes
  *
- * 카운터(ticketCount·verifyCount·photoCount·reviewCount·placeCount·entryCount)는
+ * 카운터(ticketCount·verifyCount·photoCount·placeCount·entryCount)는
  * 함수가 채우는 값이라 여기서는 0 으로 넣는다. 목 데이터의 1284 같은 숫자를 그대로 옮기면
  * 화면에는 그럴듯하게 보이지만 첫 발행에서 어긋난다.
  */
@@ -80,7 +80,7 @@ for (const place of data.places) {
   const existed = await upsert(`places/${id}`,
     { ...rest, location: new GeoPoint(lat, lng) },
     {
-      ticketCount: 0, verifyCount: 0, photoCount: 0, reviewCount: 0,
+      ticketCount: 0, verifyCount: 0, photoCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
   if (existed) kept += 1;

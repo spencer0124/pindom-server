@@ -30,6 +30,7 @@ import {
 } from './logic';
 import {
   DAILY_CALL_LIMIT,
+  GEOCODE_TOOL,
   KAKAO_CATEGORIES,
   MAX_MESSAGE_CHARS,
   MAX_TOOL_ROUNDS,
@@ -150,6 +151,7 @@ export const verifyLocation = onCall(async (req) => {
     : db.collection('verificationSessions').doc();
 
   let readings: Reading[] = [];
+  let arrivalChecked = false;
   if (sessionId) {
     const snap = await sessionRef.get();
     const session = snap.data();
@@ -159,7 +161,15 @@ export const verifyLocation = onCall(async (req) => {
       throw new HttpsError('invalid-argument', '세션의 장소와 다르다');
     }
     readings = (session.readings as Reading[] | undefined) ?? [];
+    arrivalChecked = session.arrivalChecked === true;
   }
+
+  // 도착 검사(직전 티켓에서 여기까지 낼 수 있는 속도인가)는 세션당 정확히 한 번, 여기서
+  // 계산해 둔다. accuracy·radius 거부도 세션 문서를 만들기 때문에, "sessionId 없음" 으로
+  // 아직 안 돌았음을 판단하면 다음 호출에서 세션이 있다고 오판해 검사를 영원히 건너뛴다.
+  // 세션 문서의 플래그로만 판단하고, 반환은 accuracy·radius·세션 내 속도 검사가 전부
+  // 통과한 뒤로 미룬다 — 부정확한 GPS 로 거리 조작 의심을 먼저 뒤집어씌우지 않기 위해서다.
+  const arrivalImplausible = !arrivalChecked && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt));
 
   const reject = async (reason: string, append: boolean) => {
     await writeSession(sessionRef, uid, placeId, readings, append ? newReading() : undefined, null);
@@ -180,14 +190,6 @@ export const verifyLocation = onCall(async (req) => {
     distanceMeters: distance,
   });
 
-  // 도착 검사는 세션의 첫 호출에서 한 번만 돈다. readings 가 비었는지로 판단하면 안 된다 —
-  // mock·out_of_radius 거부도 readings 에 쌓이므로, 일부러 한 번 튕기면 이 검사가 통째로
-  // 소모되고 이후 세션 전체가 300km/h 게이트 없이 지나간다. 어떤 거부보다 앞에 둬야
-  // sessionId 없음 == 아직 안 돌았음 이 성립한다.
-  if (!sessionId && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt))) {
-    return reject('implausible_speed', true);
-  }
-
   if (isMock) return reject('mock_location', true);
 
   // 오차 200m 짜리 샘플이 배열에 남으면 다음 속도 계산을 오염시킨다. 기록하지 않는다.
@@ -203,6 +205,8 @@ export const verifyLocation = onCall(async (req) => {
       return reject('implausible_speed', true);
     }
   }
+
+  if (arrivalImplausible) return reject('implausible_speed', true);
 
   const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);
   await Promise.all([
@@ -239,6 +243,8 @@ async function writeSession(
       userId: uid,
       placeId,
       readings,
+      // 이 호출로 도착 검사가 계산됐으니(그 결과가 거부든 통과든) 다시 돌 일 없다.
+      arrivalChecked: true,
       status: grantExpiresAt ? 'verified' : 'active',
       ...(grantExpiresAt && { grantExpiresAt }),
       // TTL 정책이 지우는 필드. grantExpiresAt 은 실패한 세션에 없어서 이 역할을 못 한다.
@@ -546,6 +552,26 @@ async function searchNearby(
 }
 
 /**
+ * 지명 → 좌표. 사용자가 GPS 좌표 없이 "강남역" 처럼 텍스트로만 위치를 말했을 때 모델이
+ * 이 도구로 먼저 좌표를 구하고, 그 결과를 search_nearby 에 이어 붙인다 — 모델이 위치를
+ * 다시 되묻는 대신 도구 체인으로 스스로 채우게 하는 게 이 함수의 유일한 존재 이유다.
+ */
+async function geocodePlace(query: string, key: string): Promise<{ note: string } | { lat: number; lng: number; name: string }> {
+  const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json');
+  url.searchParams.set('query', query);
+  url.searchParams.set('size', '1');
+
+  const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
+  if (!res.ok) return { note: '검색에 실패했다' };
+
+  const body = (await res.json()) as { documents?: Data[] };
+  const d = body.documents?.[0];
+  if (!d) return { note: `"${query}" 를 찾지 못했다` };
+
+  return { lat: Number(d.y), lng: Number(d.x), name: String(d.place_name ?? query) };
+}
+
+/**
  * 카카오모빌리티 자동차 길찾기. 좌표는 x=경도, y=위도 로 보내고 vertexes 도 같은 순서로 온다.
  * 경로를 못 찾는 것은 흔한 일이라(섬, 도로 없는 지점) 던지지 않고 null 로 돌려준다.
  */
@@ -588,7 +614,7 @@ async function callOpenAI(messages: ChatMessage[], key: string): Promise<Data> {
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages,
-      tools: [SEARCH_TOOL],
+      tools: [SEARCH_TOOL, GEOCODE_TOOL],
       max_tokens: 600,
     }),
   });
@@ -676,13 +702,19 @@ export const askAssistant = onCall(
         } catch {
           args = {};
         }
-        const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
-        suggestions.push(...found.places);
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: JSON.stringify(found.note ? { note: found.note } : { places: found.places }),
-        });
+
+        // 어느 도구를 불렀든 결과는 다음 라운드의 tool 메시지로 들어간다 — 모델이 그
+        // 좌표를 받아 곧바로 search_nearby 를 다시 부르는 것까지가 한 대화의 정상 경로다.
+        let content: Data;
+        if (call.function.name === 'geocode_place') {
+          const query = typeof args.query === 'string' ? args.query : '';
+          content = query ? await geocodePlace(query, KAKAO_REST_API_KEY.value()) : { note: '지명이 없다' };
+        } else {
+          const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
+          suggestions.push(...found.places);
+          content = found.note ? { note: found.note } : { places: found.places };
+        }
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(content) });
       }
     }
 

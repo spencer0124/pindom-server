@@ -256,9 +256,14 @@ async function seedRead(path) {
 
 // 도착 검사(직전 티켓 대비 300km/h)는 세션당 한 번만 돈다. 그 "한 번" 을 거부 응답으로
 // 소모시킬 수 있으면 게이트가 통째로 무력해진다. 티켓이 있어야 성립해서 맨 뒤에 둔다.
+//
+// 우선순위는 accuracy → radius → 세션 내 이동속도 → 도착 검사 순이다. 도착 검사가 먼저
+// 돌면 부정확하거나 반경 밖인 평범한 상황까지 "위치 조작이 의심된다" 로 답하게 되고,
+// accuracy 거부가 나야 할 표본이 implausible_speed(append: true) 로 readings 에 남아
+// 다음 속도 계산을 오염시킨다.
 describe('도착 검사', () => {
   const FAR = 'seoul-far';
-  // 주문진에서 약 160km. 1분 전에 여기서 티켓을 받았다면 시속 9,000km 다.
+  // 주문진에서 약 160km. 방금 여기서 티켓을 받았다면 무엇이든 시속 9,000km 다.
   const SEOUL = { lat: 37.5665, lng: 126.978 };
 
   before(async () => {
@@ -269,21 +274,47 @@ describe('도착 검사', () => {
         location: { latitude: SEOUL.lat, longitude: SEOUL.lng },
         radiusMeters: 50,
       });
+      // jumpedFromLastTicket 은 이 uid 의 issuedAt 내림차순 최신 티켓과 비교한다.
+      // 앞선 describe(issueTicket)가 이미 이 uid 로 티켓을 하나 만들어 뒀으니, 이 티켓이
+      // 그보다 나중임을 보장해야 한다 — 과거로 되돌려 찍으면(예: -60초) 먼저 만들어진
+      // 티켓보다 더 오래된 것으로 밀려 비교 대상에서 빠진다.
       await setDoc(doc(seed, 'tickets', 'far-ticket'), {
         userId: uid, placeId: FAR, placeName: '서울', photoUrl: 'x',
         serial: 'PD-TEST-TEST-TEST', visibility: 'private', spent: false,
-        issuedAt: Timestamp.fromMillis(Date.now() - 60_000),
+        issuedAt: Timestamp.now(),
       });
     });
   });
 
-  it('첫 핑이 반경 밖이어도 도착 검사가 먼저 돈다', async () => {
-    // 반경 밖이면서 동시에 불가능한 속도인 좌표. 예전에는 out_of_radius 로 먼저 리턴하면서
-    // 이 거부가 readings 에 쌓였고, 그 뒤로는 "첫 측정" 조건이 영영 거짓이라
-    // 300km/h 게이트가 세션 내내 돌지 않았다.
-    const res = await invoke('verifyLocation', reading({ lat: 38.5, lng: 128.5 }));
+  it('반경 밖이면서 이동속도도 불가능하면 out_of_radius 가 이긴다', async () => {
+    const res = await invoke('verifyLocation', reading({ accuracy: 30, lat: 38.5, lng: 128.5 }));
+    assert.equal(res.verified, false);
+    assert.equal(res.reason, 'out_of_radius');
+  });
+
+  it('정확도도 나쁘고 이동속도도 불가능하면 poor_accuracy 가 이기고, 세션에 남지 않는다', async () => {
+    const res = await invoke('verifyLocation', reading({ accuracy: 9999, lat: 38.5, lng: 128.5 }));
+    assert.equal(res.verified, false);
+    assert.equal(res.reason, 'poor_accuracy');
+    const snap = await seedRead(`verificationSessions/${res.sessionId}`);
+    assert.equal(snap.readings.length, 0);
+  });
+
+  it('accuracy·radius 를 통과하면 그제서야 도착 검사가 거부한다', async () => {
+    // 정확도 좋고 반경 안 — 다른 게이트는 전부 통과다. 그런데도 여전히 거부돼야
+    // 도착 검사가 죽은 게 아니라 우선순위만 뒤로 밀렸다는 것이 증명된다.
+    const res = await invoke('verifyLocation', reading());
     assert.equal(res.verified, false);
     assert.equal(res.reason, 'implausible_speed');
+  });
+
+  it('그 거부 이후에도 도착 검사는 같은 세션에서 다시 돌지 않는다', async () => {
+    const first = await invoke('verifyLocation', reading({ accuracy: 9999, lat: 38.5, lng: 128.5 }));
+    assert.equal(first.reason, 'poor_accuracy');
+    const second = await invoke('verifyLocation', reading({ sessionId: first.sessionId }));
+    // 두 번째 핑은 accuracy·radius 를 통과한다. 도착 검사가 세션당 한 번만 도는 게
+    // 맞다면 이미 첫 호출에서 소모돼 여기서는 통과한다.
+    assert.equal(second.verified, true);
   });
 });
 

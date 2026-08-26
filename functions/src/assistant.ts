@@ -135,7 +135,28 @@ GPS 로 인증하면 사진 티켓을 받는 앱이다. 한국어로, 짧고 구
 
 주변 장소를 물으면 search_nearby 도구를 쓴다. 도구가 준 곳만 말하고 지어내지 않는다.
 추천한 곳은 앱이 지도에 핀으로 보여주므로, 답변에서 주소나 좌표를 늘어놓지 말고
-왜 갈 만한지만 한 줄씩 붙인다. 도구가 아무것도 주지 않으면 없다고 말한다.`;
+왜 갈 만한지만 한 줄씩 붙인다. 도구가 아무것도 주지 않으면 없다고 말한다.
+
+사용자 위치는 현재 위치(near)로 미리 와 있을 수도, 안 와 있을 수도 있다. 안 와 있는데
+사용자가 "강남역", "부산 해운대" 처럼 지명이나 주소를 텍스트로 말하면, 위치를 다시 묻지
+말고 geocode_place 로 그 지명을 좌표로 바꾼 뒤 곧바로 search_nearby 를 쓴다. 지명도 위치도
+전혀 없을 때만 위치를 물어본다.`;
+
+export const GEOCODE_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'geocode_place',
+    description:
+      '지명·주소·역 이름을 좌표로 바꾼다. 사용자가 현재 위치는 안 주고 장소 이름만 텍스트로 말했을 때 쓴다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '"강남역", "부산 해운대" 처럼 사용자가 말한 지명' },
+      },
+      required: ['query'],
+    },
+  },
+};
 
 export const SEARCH_TOOL = {
   type: 'function' as const,
