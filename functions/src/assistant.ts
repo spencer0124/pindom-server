@@ -227,3 +227,53 @@ export function samplePath(path: LatLng[], n = 2): LatLng[] {
   }
   return out;
 }
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
+  tool_call_id?: string;
+}
+
+export interface ToolLoopResult {
+  reply: string;
+  suggestions: Suggestion[];
+}
+
+/**
+ * 도구 호출 왕복 루프. callModel/runTool 을 주입받아 fetch(OpenAI·카카오)를 모른다 —
+ * 그래서 실제 네트워크 없이 단위 테스트가 된다. index.ts 는 이 자리에 실제 구현을 꽂는
+ * 얇은 어댑터다.
+ */
+export async function runToolLoop(
+  messages: ChatMessage[],
+  callModel: (messages: ChatMessage[]) => Promise<ChatMessage>,
+  runTool: (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  maxRounds = MAX_TOOL_ROUNDS,
+): Promise<ToolLoopResult> {
+  const suggestions: Suggestion[] = [];
+
+  for (let round = 0; round <= maxRounds; round += 1) {
+    const answer = await callModel(messages);
+    const calls = answer.tool_calls ?? [];
+
+    if (calls.length === 0 || round === maxRounds) {
+      return { reply: typeof answer.content === 'string' ? answer.content : '', suggestions: dedupe(suggestions).slice(0, 12) };
+    }
+
+    messages.push(answer);
+    for (const call of calls) {
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(call.function.arguments) as Record<string, unknown>;
+      } catch {
+        args = {};
+      }
+      const content = await runTool(call.function.name, args);
+      if (Array.isArray(content.places)) suggestions.push(...(content.places as Suggestion[]));
+      messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(content) });
+    }
+  }
+  // round 가 maxRounds 에 닿으면 위 분기가 이미 반환한다 — 타입 체커를 위한 자리.
+  return { reply: '', suggestions: dedupe(suggestions).slice(0, 12) };
+}

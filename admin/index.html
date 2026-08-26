@@ -252,27 +252,37 @@ onAuthStateChanged(auth, async (user) => {
 // ── 목록 ──────────────────────────────────────────────────────────────────────
 
 async function load() {
-  const [artistSnap, boardSnap, placeSnap] = await Promise.all([
-    getDocs(query(collection(db, 'artists'), orderBy('name.ko'))),
-    getDocs(query(collection(db, 'boards'), orderBy('order'))),
-    getDocs(collection(db, 'places')),
-  ]);
-  artists = artistSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  boards = boardSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  places = placeSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  try {
+    const [artistSnap, boardSnap, placeSnap] = await Promise.all([
+      getDocs(query(collection(db, 'artists'), orderBy('name.ko'))),
+      getDocs(query(collection(db, 'boards'), orderBy('order'))),
+      getDocs(collection(db, 'places')),
+    ]);
+    artists = artistSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    boards = boardSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    places = placeSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    // 목록이 그냥 비어 보이면 "데이터가 원래 없나 보다"로 착각한다.
+    // 읽기 자체가 실패한 경우와 구분해서 보여준다.
+    $('who').insertAdjacentHTML('afterend',
+      `<p class="msg bad">목록을 불러오지 못했다: ${esc(err.message)}</p>`);
+    return;
+  }
 
   renderArtists();
   renderBoards();
   renderPlaces();
 }
 
+const emptyRow = (cols, text) => `<tr><td colspan="${cols}" style="color:var(--dim)">${text}</td></tr>`;
+
 function renderArtists() {
-  $('artistRows').innerHTML = artists.map((a) => `
+  $('artistRows').innerHTML = artists.length ? artists.map((a) => `
     <tr>
       <td class="id">${esc(a.id)}</td>
       <td>${HEX_COLOR_RE.test(a.accentColor ?? '') ? `<span class="swatch" style="background:${a.accentColor}"></span> ` : ''}${esc(a.name?.ko ?? '')}</td>
       <td><button type="button" data-edit="${esc(a.id)}">수정</button></td>
-    </tr>`).join('');
+    </tr>`).join('') : emptyRow(3, '아직 등록된 아티스트가 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('artistRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editArtist(artists.find((a) => a.id === btn.dataset.edit));
   }
@@ -286,7 +296,7 @@ function renderArtists() {
 }
 
 function renderBoards() {
-  $('boardRows').innerHTML = boards.map((b) => `
+  $('boardRows').innerHTML = boards.length ? boards.map((b) => `
     <tr class="${b.archived ? 'archived' : ''}">
       <td class="id">${esc(b.id)}</td>
       <td>${HEX_COLOR_RE.test(b.accentColor ?? '') ? `<span class="swatch" style="background:${b.accentColor}"></span> ` : ''}${esc(b.name?.ko ?? '')}</td>
@@ -294,21 +304,21 @@ function renderBoards() {
       <td>${Number(b.order ?? 0)}</td>
       <td>${b.archived ? '보관' : '노출'}</td>
       <td><button type="button" data-edit="${esc(b.id)}">수정</button></td>
-    </tr>`).join('');
+    </tr>`).join('') : emptyRow(6, '아직 등록된 게시판이 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('boardRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editBoard(boards.find((b) => b.id === btn.dataset.edit));
   }
 }
 
 function renderPlaces() {
-  $('placeRows').innerHTML = places.map((p) => `
+  $('placeRows').innerHTML = places.length ? places.map((p) => `
     <tr>
       <td class="id">${esc(p.id)}</td>
       <td>${esc(p.name?.ko ?? '')}</td>
       <td>${Number(p.radiusMeters ?? 0)}m</td>
       <td>${(p.artistIds ?? []).map((id) => esc(artists.find((a) => a.id === id)?.name?.ko ?? id)).join(', ')}</td>
       <td><button type="button" data-edit="${esc(p.id)}">수정</button></td>
-    </tr>`).join('');
+    </tr>`).join('') : emptyRow(5, '아직 등록된 촬영지가 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('placeRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editPlace(places.find((p) => p.id === btn.dataset.edit));
   }

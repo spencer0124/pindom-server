@@ -11,11 +11,13 @@ import {
   DAILY_CALL_LIMIT,
   MAX_HISTORY,
   MAX_PATH_POINTS,
+  MAX_TOOL_ROUNDS,
   dayKeyKst,
   decimate,
   dedupe,
   nextCallCount,
   parseRoute,
+  runToolLoop,
   samplePath,
   sanitizeHistory,
   toSuggestion,
@@ -164,6 +166,106 @@ describe('decimate', () => {
     assert.equal(out.length, MAX_PATH_POINTS);
     assert.deepEqual(out[0], path[0]);
     assert.deepEqual(out.at(-1), path.at(-1));
+  });
+});
+
+describe('runToolLoop', () => {
+  const PLACE_A = { sourceId: 'a', name: 'A', lat: 1, lng: 1, category: '카페', address: '', source: 'kakao' };
+  const PLACE_B = { sourceId: 'b', name: 'B', lat: 2, lng: 2, category: '카페', address: '', source: 'kakao' };
+
+  it('도구를 안 부르면 첫 라운드에 바로 답한다', async () => {
+    let calls = 0;
+    const callModel = async () => { calls += 1; return { role: 'assistant', content: '안녕' }; };
+    const runTool = async () => { throw new Error('불릴 일이 없다'); };
+
+    const out = await runToolLoop([{ role: 'user', content: '안녕' }], callModel, runTool);
+    assert.equal(out.reply, '안녕');
+    assert.deepEqual(out.suggestions, []);
+    assert.equal(calls, 1);
+  });
+
+  it('geocode_place 로 좌표를 받아 곧바로 search_nearby 를 잇는다 — 화면 캡처의 버그 재현', async () => {
+    // "서울 강남역" 처럼 텍스트로만 위치를 말했을 때: 모델이 geocode_place 를 부르고,
+    // 그 결과를 받아 search_nearby 를 다시 부른 뒤에야 최종 답을 낸다.
+    const rounds = [
+      {
+        role: 'assistant', content: null,
+        tool_calls: [{ id: 't1', type: 'function', function: { name: 'geocode_place', arguments: '{"query":"강남역"}' } }],
+      },
+      {
+        role: 'assistant', content: null,
+        tool_calls: [{ id: 't2', type: 'function', function: { name: 'search_nearby', arguments: '{"lat":37.5,"lng":127.02,"category":"restaurant"}' } }],
+      },
+      { role: 'assistant', content: '강남역 근처에 A, B 가 있다' },
+    ];
+    let round = 0;
+    const callModel = async () => rounds[round++];
+
+    const toolCalls = [];
+    const runTool = async (name, args) => {
+      toolCalls.push(name);
+      if (name === 'geocode_place') return { lat: 37.5, lng: 127.02, name: args.query };
+      return { places: [PLACE_A, PLACE_B] };
+    };
+
+    const out = await runToolLoop([{ role: 'user', content: '서울 강남역' }], callModel, runTool);
+    assert.deepEqual(toolCalls, ['geocode_place', 'search_nearby']);
+    assert.equal(out.reply, '강남역 근처에 A, B 가 있다');
+    assert.equal(out.suggestions.length, 2);
+    assert.equal(round, 3);
+  });
+
+  it('중복 장소는 걷어낸다', async () => {
+    const rounds = [
+      { role: 'assistant', content: null, tool_calls: [{ id: 't1', type: 'function', function: { name: 'search_nearby', arguments: '{}' } }] },
+      { role: 'assistant', content: '있다' },
+    ];
+    let round = 0;
+    const out = await runToolLoop(
+      [{ role: 'user', content: '주변' }],
+      async () => rounds[round++],
+      async () => ({ places: [PLACE_A, PLACE_A, PLACE_B] }),
+    );
+    assert.equal(out.suggestions.length, 2);
+  });
+
+  it('상한 라운드에 닿으면 도구를 계속 부르려 해도 멈춘다 — 청구서가 무한히 불지 않는다', async () => {
+    let calls = 0;
+    const callModel = async () => {
+      calls += 1;
+      // 모델이 매 라운드 도구를 다시 부르려는 최악의 경우.
+      return { role: 'assistant', content: null, tool_calls: [{ id: `t${calls}`, type: 'function', function: { name: 'search_nearby', arguments: '{}' } }] };
+    };
+    const runTool = async () => ({ places: [] });
+
+    const out = await runToolLoop([{ role: 'user', content: '주변' }], callModel, runTool, 2);
+    assert.equal(calls, 3); // round 0,1,2 — MAX_TOOL_ROUNDS 가 2 면 세 번만 부른다
+    assert.equal(out.reply, '');
+  });
+
+  it('기본 상한은 MAX_TOOL_ROUNDS 상수와 같다', async () => {
+    let calls = 0;
+    const callModel = async () => {
+      calls += 1;
+      return { role: 'assistant', content: null, tool_calls: [{ id: `t${calls}`, type: 'function', function: { name: 'search_nearby', arguments: '{}' } }] };
+    };
+    await runToolLoop([{ role: 'user', content: '주변' }], callModel, async () => ({ places: [] }));
+    assert.equal(calls, MAX_TOOL_ROUNDS + 1);
+  });
+
+  it('도구 결과가 note 뿐이어도 다음 라운드로 넘어간다', async () => {
+    const rounds = [
+      { role: 'assistant', content: null, tool_calls: [{ id: 't1', type: 'function', function: { name: 'geocode_place', arguments: '{"query":"없는곳"}' } }] },
+      { role: 'assistant', content: '그 지명은 못 찾았다' },
+    ];
+    let round = 0;
+    const out = await runToolLoop(
+      [{ role: 'user', content: '없는곳' }],
+      async () => rounds[round++],
+      async () => ({ note: '"없는곳" 를 찾지 못했다' }),
+    );
+    assert.equal(out.reply, '그 지명은 못 찾았다');
+    assert.deepEqual(out.suggestions, []);
   });
 });
 

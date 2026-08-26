@@ -851,10 +851,10 @@ Storage 에서 `read` 는 `get` 과 `list` 를 함께 뜻한다. 열어두면 �
 | --- | --- | --- |
 | 5 | `placeName` 을 한국어만 비정규화 | 의도한 선택 그대로 둔다. 앱 쪽 글 pin 라벨도 같은 방식이라 어긋나진 않는다. 맵을 저장하고 읽을 때 풀면 더 정확하지만 이미 문서가 있는 컬렉션의 필드 타입을 바꾸는 일이라 공모전 전엔 손 안 댄다 |
 | 6 | 마감 지난 래플이 `status: closed` 로 안 넘어감 | `enterRaffle` 은 이미 `closesAt` 을 보고 거부하므로 기능은 안 깨진다. `status` 만 보는 소비자(관리 화면·export)가 생기면 스케줄 함수를 붙인다 — 지금은 없다 |
-| 7 | `askAssistant` not deployed | 로컬엔 이미 있다(챗봇 함수, 이번 브랜치에 커밋됨). 배포된 origin 에만 없다 — `firebase deploy` 가 남았다. 공모전 스코프에 들어가는지 확인되면 그때 배포한다 |
+| 7 | `askAssistant` not deployed | **2026-08-26 배포 완료.** `firebase deploy` 로 functions·firestore rules/indexes·storage rules·hosting 전부 나갔다 |
 
-`verifyCount`·갤러리 동기화는 필드/트리거 추가라 배포해야 반영된다. 로컬 커밋에는 있고
-아직 origin 에 안 나갔다 — 위 문서 [connect-the-app-to-firebase.md](../how-to/connect-the-app-to-firebase.md) 재현 체크는 배포 이후에 다시 돌려야 한다.
+`verifyCount`·갤러리 동기화(`syncGalleryOnVisibility`)도 이번 배포에 같이 나갔다 — 위 문서
+[connect-the-app-to-firebase.md](../how-to/connect-the-app-to-firebase.md) 재현 체크를 다시 돌려도 된다.
 
 ## 남은 것
 

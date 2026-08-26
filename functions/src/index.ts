@@ -33,15 +33,15 @@ import {
   GEOCODE_TOOL,
   KAKAO_CATEGORIES,
   MAX_MESSAGE_CHARS,
-  MAX_TOOL_ROUNDS,
   SEARCH_TOOL,
   SYSTEM_PROMPT,
+  type ChatMessage,
   type Route,
   type Suggestion,
   dayKeyKst,
-  dedupe,
   nextCallCount,
   parseRoute,
+  runToolLoop,
   samplePath,
   sanitizeHistory,
   toSuggestion,
@@ -506,13 +506,6 @@ export const enterRaffle = onCall(async (req) => {
 // 청구서에는 멈추는 쿼터가 없다. App Check 이 없는 동안 사용자당 일일 상한이 유일한 방어다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
-  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-  tool_call_id?: string;
-}
-
 /** 카카오 로컬. 429 는 던지지 않는다 — 추천이 비는 것이지 대화가 실패한 것은 아니다. */
 async function searchNearby(
   args: Data,
@@ -607,7 +600,7 @@ async function placeCoords(placeId: string): Promise<{ at: LatLng; name: string 
   };
 }
 
-async function callOpenAI(messages: ChatMessage[], key: string): Promise<Data> {
+async function callOpenAI(messages: ChatMessage[], key: string): Promise<ChatMessage> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -622,7 +615,7 @@ async function callOpenAI(messages: ChatMessage[], key: string): Promise<Data> {
     const detail = (await res.text()).slice(0, 200);
     throw new HttpsError('unavailable', `모델 호출 실패 (${res.status}): ${detail}`);
   }
-  const body = (await res.json()) as { choices?: Array<{ message?: Data }> };
+  const body = (await res.json()) as { choices?: Array<{ message?: ChatMessage }> };
   const message = body.choices?.[0]?.message;
   if (!message) throw new HttpsError('unavailable', '모델이 빈 응답을 보냈다');
   return message;
@@ -682,44 +675,24 @@ export const askAssistant = onCall(
       { role: 'user', content: message },
     ];
 
-    const suggestions: Suggestion[] = [];
-    let reply = '';
-
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-      const answer = await callOpenAI(messages, OPENAI_API_KEY.value());
-      const calls = (answer.tool_calls ?? []) as ChatMessage['tool_calls'];
-
-      if (!calls || calls.length === 0 || round === MAX_TOOL_ROUNDS) {
-        reply = typeof answer.content === 'string' ? answer.content : '';
-        break;
-      }
-
-      messages.push(answer as unknown as ChatMessage);
-      for (const call of calls) {
-        let args: Data = {};
-        try {
-          args = JSON.parse(call.function.arguments) as Data;
-        } catch {
-          args = {};
-        }
-
-        // 어느 도구를 불렀든 결과는 다음 라운드의 tool 메시지로 들어간다 — 모델이 그
-        // 좌표를 받아 곧바로 search_nearby 를 다시 부르는 것까지가 한 대화의 정상 경로다.
-        let content: Data;
-        if (call.function.name === 'geocode_place') {
+    // 어느 도구를 불렀든 결과는 다음 라운드의 tool 메시지로 들어간다 — 모델이 그 좌표를
+    // 받아 곧바로 search_nearby 를 다시 부르는 것까지가 한 대화의 정상 경로다. 루프 자체는
+    // runToolLoop(assistant.ts) 가 갖고, 여기서는 실제 도구 구현만 주입한다.
+    const { reply, suggestions } = await runToolLoop(
+      messages,
+      (msgs) => callOpenAI(msgs, OPENAI_API_KEY.value()),
+      async (name, args) => {
+        if (name === 'geocode_place') {
           const query = typeof args.query === 'string' ? args.query : '';
-          content = query ? await geocodePlace(query, KAKAO_REST_API_KEY.value()) : { note: '지명이 없다' };
-        } else {
-          const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
-          suggestions.push(...found.places);
-          content = found.note ? { note: found.note } : { places: found.places };
+          return query ? await geocodePlace(query, KAKAO_REST_API_KEY.value()) : { note: '지명이 없다' };
         }
-        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(content) });
-      }
-    }
+        const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
+        return found.note ? { note: found.note } : { places: found.places };
+      },
+    );
 
     // 경로를 이미 받아왔으면 함께 돌려준다. 앱이 지도에 선을 그리려고 다시 부를 이유가 없다.
-    return { reply, suggestions: dedupe(suggestions).slice(0, 12), route };
+    return { reply, suggestions, route };
   },
 );
 
