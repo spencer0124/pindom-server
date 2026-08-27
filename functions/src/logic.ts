@@ -36,6 +36,14 @@ export const MAX_READINGS = 5;
 export const DEFAULT_RADIUS_M = 50;
 
 /**
+ * 반경 상한. 이 값이 없으면 `50` 을 `50000` 으로 오타 낸 한 번이 도시 전체를 인증 구역으로
+ * 만들고, 아무도 모르는 채 티켓이 샌다. 티켓은 응모에 쓰이는 화폐이고 위치 인증이 그
+ * 화폐의 유일한 발행 조건이라, 여기가 사실상 발행량을 정하는 손잡이다.
+ * 촬영지는 실제로는 수십 미터 규모라 500m 면 실물 오차까지 덮고도 남는다.
+ */
+export const MAX_RADIUS_M = 500;
+
+/**
  * 사용자당 하루 verifyLocation 호출 상한. 세션마다 문서가 하나 생기고 성공하면
  * verifyCount 도 늘어서, 상한 없이 두면 반복 호출만으로 둘 다 무한히 부풀릴 수 있다.
  * GPS 가 여러 번 튀는 실사용을 덮으면서도 스크립트 반복 호출은 막을 만큼 넉넉하게 잡는다.
@@ -322,8 +330,13 @@ export function normalizePlace(input: PlaceInput): { placeId: string | undefined
   }
 
   const radiusMeters = input.radiusMeters === undefined ? DEFAULT_RADIUS_M : input.radiusMeters;
-  if (typeof radiusMeters !== 'number' || !Number.isFinite(radiusMeters) || radiusMeters <= 0) {
-    throw new Error('radiusMeters 는 양수다');
+  if (
+    typeof radiusMeters !== 'number'
+    || !Number.isFinite(radiusMeters)
+    || radiusMeters <= 0
+    || radiusMeters > MAX_RADIUS_M
+  ) {
+    throw new Error(`radiusMeters 는 1~${MAX_RADIUS_M} 사이다`);
   }
 
   const artistIds = input.artistIds === undefined ? [] : input.artistIds;
@@ -365,10 +378,13 @@ export function normalizePlace(input: PlaceInput): { placeId: string | undefined
  */
 export const BANNED_WORDS = [
   '시발', '씨발', '시팔', '씨팔', 'ㅅㅂ', 'ㅄ', 'ㅂㅅ',
-  '병신', '븅신', '좆', '존나', '지랄', '개새끼', '개새기',
+  '병신', '븅신', '좆', '지랄', '개새끼', '개새기',
   '미친놈', '미친년', '썅', '엠창', '느금마',
   'fuck', 'shit', 'bitch', 'asshole',
 ];
+
+// '존나' 는 뺐다. 아이돌 팬 커뮤니티에서 일상적인 강조어라 잡는 족족 멀쩡한 글이 격리된다.
+// 목록의 목적은 욕설 차단이지 말투 교정이 아니다.
 
 /**
  * 걸린 낱말을 돌려준다. 없으면 undefined.

@@ -288,6 +288,11 @@ describe('reports · 차단 (Apple 1.2)', () => {
       blockedUserIds: [BOB], ticketBalance: 99,
     }));
   });
+
+  it('rateLimits 는 본인 것도 못 읽고 못 쓴다 — 남은 횟수가 새거나 상한이 무의미해진다', async () => {
+    await assertFails(getDoc(doc(alice(), 'rateLimits', ALICE)));
+    await assertFails(setDoc(doc(alice(), 'rateLimits', ALICE), { assistantCount: 0 }));
+  });
 });
 
 describe('storage', () => {

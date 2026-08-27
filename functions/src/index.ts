@@ -5,9 +5,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, GeoPoint, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions';
-import { defineSecret } from 'firebase-functions/params';
+import { defineBoolean, defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
-import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import {
   ACCURACY_GATE_M,
@@ -73,6 +73,39 @@ function requireUid(req: CallableRequest): string {
   return uid;
 }
 
+/**
+ * 로그인에 더해 이메일 인증까지 요구한다. 돈이 걸린 호출 — 남의 청구서(OpenAI)가 나가거나
+ * 화폐(티켓)가 발행되는 자리 — 에만 붙인다.
+ *
+ * 이 백엔드의 비용 방어는 전부 uid 당으로 걸려 있다(AI 30회/일, 인증 200회/일, 쿨다운 30일).
+ * 그런데 이메일·비밀번호 가입이 열려 있고 가입 쿼터도 없어서, uid 는 사실상 공짜다 —
+ * 계정을 하나 더 만들면 모든 한도가 그대로 초기화된다. 한도를 아무리 조여도 그 위가 안
+ * 막히면 소용이 없다.
+ *
+ * 진짜 해법은 App Check 이다(정품 앱에서 온 호출만 통과). 앱 쪽 SDK 작업이 선행돼야 해서
+ * 서버만으로는 못 켜고, 그때까지 계정 양산 비용을 "받을 수 있는 메일 주소 하나" 로 올려
+ * 두는 임시 방벽이다.
+ *
+ * 기본은 꺼져 있다. 앱이 가입 직후 sendEmailVerification() 을 보내기 전에 켜면 신규
+ * 가입자가 전부 막힌다 — 서버만 먼저 켤 수 있는 종류의 방어가 아니다. 앱이 준비되면
+ * `firebase deploy` 전에 functions/.env 의 REQUIRE_EMAIL_VERIFIED=true 로 바꾼다.
+ */
+const REQUIRE_EMAIL_VERIFIED = defineBoolean('REQUIRE_EMAIL_VERIFIED', { default: false });
+
+function requireVerifiedUid(req: CallableRequest): string {
+  const uid = requireUid(req);
+  if (!REQUIRE_EMAIL_VERIFIED.value()) return uid;
+  // 관리자는 통과시킨다 — grant-admin 으로 붙인 계정이고, 심사 계정이 메일 인증에 막혀
+  // 데모가 멈추는 상황을 만들지 않기 위해서다.
+  if (req.auth?.token.admin === true) return uid;
+  if (req.auth?.token.email_verified !== true) {
+    throw new HttpsError('permission-denied', '이메일 인증이 필요하다', {
+      errorCode: 'email_not_verified',
+    });
+  }
+  return uid;
+}
+
 function requireAdmin(req: CallableRequest): void {
   requireUid(req);
   if (req.auth?.token.admin !== true) {
@@ -102,6 +135,43 @@ function precondition(errorCode: string, extra: Data = {}): HttpsError {
 
 const geo = (p: GeoPoint): LatLng => ({ lat: p.latitude, lng: p.longitude });
 
+/**
+ * 사용자당 하루 호출 상한을 하나 소비한다. 넘으면 resource-exhausted 로 던진다.
+ *
+ * 읽기·검사·쓰기를 트랜잭션으로 묶는다 — 아니면 동시에 날아온 요청들이 전부 같은 count 를
+ * 읽고 전부 통과해, 상한이 사실상 "동시 요청 수 × 한도" 가 된다.
+ *
+ * 카운터를 users/{uid} 가 아니라 rateLimits/{uid} 에 둔다. 두 가지 이유다:
+ *
+ *   1. 경합. verifyLocation 은 GPS 체크인 한 번에 여러 번 불린다. 카운터가 users 문서에
+ *      있으면 그 연타가 issueTicket 의 ticketBalance·tier 쓰기와 같은 문서를 놓고 다투고,
+ *      Firestore 는 문서 하나당 지속 쓰기가 초당 1회 남짓이라 체크인이 눈에 띄게 느려진다.
+ *   2. 규칙. users 는 클라이언트가 만드는 문서라, 서버 전용 필드를 거기 두면 가입 요청에
+ *      assistantCallCount: -1000000 을 끼워 넣는 우회를 규칙에서 필드마다 막아야 한다.
+ *      아예 클라이언트가 닿을 수 없는 컬렉션으로 옮기면 그 방어가 통째로 필요 없어진다.
+ */
+async function consumeDailyQuota(
+  uid: string,
+  field: 'verify' | 'assistant',
+  limit: number,
+  errorCode: string,
+  message: string,
+): Promise<void> {
+  const ref = db.doc(`rateLimits/${uid}`);
+  const today = dayKeyKst(new Date());
+  const dayKey = `${field}Day`;
+  const countKey = `${field}Count`;
+
+  await db.runTransaction(async (tx) => {
+    const data = (await tx.get(ref)).data() ?? {};
+    const count = nextCallCount(data[dayKey], data[countKey], today);
+    if (count > limit) {
+      throw new HttpsError('resource-exhausted', message, { errorCode, limit });
+    }
+    tx.set(ref, { [dayKey]: today, [countKey]: count }, { merge: true });
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // verifyLocation
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,24 +191,14 @@ interface Reading {
  * 순간뿐이다 — 데모 직전에만 켠다.
  */
 export const verifyLocation = onCall(async (req) => {
-  const uid = requireUid(req);
+  const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
 
   // 상한 먼저. 세션 문서는 실패해도 생기고 verifyCount 는 성공할 때마다 늘어서,
   // 이걸 안 막으면 반복 호출만으로 둘 다 무한히 부풀릴 수 있다.
-  const verifyUserRef = db.doc(`users/${uid}`);
-  const verifyToday = dayKeyKst(new Date());
-  await db.runTransaction(async (tx) => {
-    const user = (await tx.get(verifyUserRef)).data() ?? {};
-    const count = nextCallCount(user.verifyCallDay, user.verifyCallCount, verifyToday);
-    if (count > VERIFY_DAILY_LIMIT) {
-      throw new HttpsError('resource-exhausted', '오늘 인증 시도 한도를 다 썼다', {
-        errorCode: 'verify_daily_limit',
-        limit: VERIFY_DAILY_LIMIT,
-      });
-    }
-    tx.set(verifyUserRef, { verifyCallDay: verifyToday, verifyCallCount: count }, { merge: true });
-  });
+  await consumeDailyQuota(
+    uid, 'verify', VERIFY_DAILY_LIMIT, 'verify_daily_limit', '오늘 인증 시도 한도를 다 썼다',
+  );
 
   const placeId = str(data, 'placeId');
   const lat = num(data, 'lat');
@@ -316,7 +376,7 @@ async function jumpedFromLastTicket(uid: string, here: LatLng, at: Date): Promis
  * 카메라를 UI 에서만 잠그면 고친 앱이 그냥 지나가므로, 발행 권한은 그랜트가 갖는다.
  */
 export const issueTicket = onCall(async (req) => {
-  const uid = requireUid(req);
+  const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
   const grantToken = str(data, 'grantToken');
   const photoPath = str(data, 'photoPath');
@@ -478,7 +538,7 @@ async function rotateDownloadUrl(path: string): Promise<string> {
  * 일어난 것이므로 차감 없이 기존 id 를 돌려준다. 별도 멱등 컬렉션도 조회도 필요 없다.
  */
 export const enterRaffle = onCall(async (req) => {
-  const uid = requireUid(req);
+  const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
   const raffleId = str(data, 'raffleId');
   const idempotencyKey = str(data, 'idempotencyKey');
@@ -539,10 +599,32 @@ export const enterRaffle = onCall(async (req) => {
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.update(userRef, { ticketBalance: balance });
-    tx.update(raffleRef, { entryCount: FieldValue.increment(1) });
+    // entryCount 는 여기서 올리지 않는다 — countRaffleEntry 트리거가 맡는다. 이유는 그 함수 주석에.
 
     return { entryId: entryRef.id, ticketBalance: balance, ticketIds, ticketsSpent: cost };
   });
+});
+
+/**
+ * 응모 수 집계. enterRaffle 트랜잭션 밖으로 뺀 이유:
+ *
+ * 래플은 본질적으로 스탬피드다 — "응모 시작" 이 뜨면 전원이 동시에 누른다. 그런데
+ * raffles/{raffleId} 는 응모자 전원이 공유하는 문서 하나고, Firestore 는 문서 하나당
+ * 지속 쓰기가 초당 1회 남짓이다. 이 증가를 트랜잭션 안에 두면 동시 응모자들이 같은 문서를
+ * 놓고 경합해 트랜잭션이 ABORTED 로 죽고, 죽을 때마다 읽기 네 번(티켓 쿼리 포함)이 통째로
+ * 다시 돈다. 사용자에게는 "응모 실패" 로 보인다 — 티켓은 멀쩡한데 응모가 안 되는 상태다.
+ *
+ * 응모는 반드시 성공해야 하고 숫자는 좀 늦어도 된다. 그래서 순서를 바꿨다.
+ *
+ * ponytail: 트리거도 결국 같은 문서에 쓰므로 초당 1회 한계는 그대로다. 다만 밀리는 게
+ * 사용자 요청이 아니라 집계라 응모가 실패하지 않는다. 트리거는 at-least-once 라 아주
+ * 드물게 재시도로 한두 개 더 셀 수 있다. 정확한 수가 필요해지면(당첨자 추첨 등) 그 값을
+ * 믿지 말고 raffleEntries.where('raffleId','==',id).count() 집계 쿼리로 세면 된다.
+ */
+export const countRaffleEntry = onDocumentCreated('raffleEntries/{entryId}', async (event) => {
+  const raffleId = event.data?.data().raffleId as string | undefined;
+  if (!raffleId) return;
+  await db.doc(`raffles/${raffleId}`).update({ entryCount: FieldValue.increment(1) });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -670,26 +752,14 @@ async function callOpenAI(messages: ChatMessage[], key: string): Promise<ChatMes
 export const askAssistant = onCall(
   { secrets: [OPENAI_API_KEY, KAKAO_REST_API_KEY], timeoutSeconds: 60 },
   async (req) => {
-    const uid = requireUid(req);
+    const uid = requireVerifiedUid(req);
     const data = (req.data ?? {}) as Data;
     const message = str(data, 'message').slice(0, MAX_MESSAGE_CHARS);
 
     // 상한 먼저. 모델을 부른 뒤에 세면 초과분이 이미 결제된 뒤다.
-    // 읽기·검사·쓰기를 트랜잭션으로 묶는다 — 아니면 동시에 날아온 요청들이 전부 같은
-    // count 를 읽고 전부 통과해, 상한이 사실상 "동시 요청 수 × 30" 이 된다.
-    const userRef = db.doc(`users/${uid}`);
-    const today = dayKeyKst(new Date());
-    await db.runTransaction(async (tx) => {
-      const user = (await tx.get(userRef)).data() ?? {};
-      const count = nextCallCount(user.assistantCallDay, user.assistantCallCount, today);
-      if (count > DAILY_CALL_LIMIT) {
-        throw new HttpsError('resource-exhausted', '오늘 대화 한도를 다 썼다', {
-          errorCode: 'assistant_daily_limit',
-          limit: DAILY_CALL_LIMIT,
-        });
-      }
-      tx.set(userRef, { assistantCallDay: today, assistantCallCount: count }, { merge: true });
-    });
+    await consumeDailyQuota(
+      uid, 'assistant', DAILY_CALL_LIMIT, 'assistant_daily_limit', '오늘 대화 한도를 다 썼다',
+    );
 
     // 어디를 기준으로 찾을지. 좌표는 촬영지 문서에서 오고 클라이언트가 보낸 값을 쓰지 않는다.
     const near =
@@ -910,7 +980,7 @@ export const deleteArtist = onCall(async (req) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) => {
-  requireUid(req);
+  requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
 
   const placeIds = Array.isArray(data.placeIds) ? data.placeIds.filter((v) => typeof v === 'string') : [];
@@ -989,6 +1059,17 @@ export const syncGalleryOnVisibility = onDocumentUpdated('tickets/{ticketId}', a
 // 걸리는 글이 드문 데 비해 값이 너무 비싸다.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 걸린 글은 지우기 전에 원문을 통째로 moderationQueue 에 옮겨 둔다.
+ *
+ * 그냥 지우기만 하면 오검출이 곧 데이터 손실이다. containsBanned 는 공백·구두점을 지운 뒤
+ * 부분 문자열로 보는 방식이라 낱말 경계를 넘는 오검출이 원리상 남아 있고, 걸린 사용자에게는
+ * 글이 소리 없이 사라진 것으로만 보인다 — 문의가 와도 뭘 썼는지조차 확인할 수 없다.
+ *
+ * 큐에 원문을 남겨 두면 관리자가 콘솔에서 보고 되살릴 수 있고, 오검출이 쌓이면 그게 곧
+ * BANNED_WORDS 를 다듬을 근거가 된다. 피드 쿼리·색인은 그대로 둔 채(문서는 여전히 사라지므로)
+ * 복구 경로만 생긴다.
+ */
 async function moderate(
   snap: FirebaseFirestore.DocumentSnapshot | undefined,
   fields: string[],
@@ -998,8 +1079,17 @@ async function moderate(
   const text = fields.map((f) => (typeof data[f] === 'string' ? (data[f] as string) : '')).join(' ');
   const hit = containsBanned(text);
   if (!hit) return;
-  console.warn(`금칙어로 삭제: ${snap!.ref.path} (${hit})`);
-  await snap!.ref.delete();
+
+  const ref = snap!.ref;
+  console.warn(`금칙어로 격리: ${ref.path} (${hit})`);
+  await db.collection('moderationQueue').add({
+    sourcePath: ref.path,
+    matchedWord: hit,
+    authorId: data.authorId ?? null,
+    document: data,
+    quarantinedAt: FieldValue.serverTimestamp(),
+  });
+  await ref.delete();
 }
 
 export const moderatePost = onDocumentWritten('posts/{postId}', (event) =>
@@ -1063,8 +1153,11 @@ export const deleteAccount = onCall(async (req) => {
   }
   await writer.close();
 
-  // 하위 컬렉션(savedPlaces)까지 같이 지운다.
-  await db.recursiveDelete(db.doc(`users/${uid}`));
+  // 하위 컬렉션(savedPlaces)까지 같이 지운다. 일일 상한 카운터는 users 밖에 있어 따로 지운다.
+  await Promise.all([
+    db.recursiveDelete(db.doc(`users/${uid}`)),
+    db.doc(`rateLimits/${uid}`).delete(),
+  ]);
 
   // 사진 원본. storage.rules 가 tickets/{uid}/ 와 posts/{uid}/ 둘만 허용한다.
   const bucket = getStorage().bucket();

@@ -13,7 +13,7 @@ import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { deleteApp, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import {
-  Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getFirestore, setDoc,
+  Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore, setDoc,
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { connectStorageEmulator, getStorage, ref, uploadBytes } from 'firebase/storage';
@@ -330,6 +330,45 @@ describe('도착 검사', () => {
   });
 });
 
+
+// 금칙어 트리거는 글을 지우되 원문을 moderationQueue 에 남긴다. 그냥 지우기만 하면
+// 오검출이 곧 데이터 손실이고, 문의가 와도 뭘 썼는지조차 확인할 수 없다.
+describe('금칙어 격리', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 2500));
+
+  it('걸린 글은 지워지되 원문이 moderationQueue 에 남는다', async () => {
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'places', PLACE, 'reviews', 'bad-review'), {
+        authorId: uid, authorNickname: '앨리스', authorTier: 'club10',
+        text: '아 시발 별로였다', likeCount: 0, createdAt: Timestamp.now(),
+      });
+    });
+    await settle();
+
+    assert.equal(await seedRead(`places/${PLACE}/reviews/bad-review`), undefined);
+
+    let queued = [];
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await getDocs(collection(ctx.firestore(), 'moderationQueue'));
+      queued = snap.docs.map((d) => d.data());
+    });
+    const item = queued.find((q) => q.sourcePath === `places/${PLACE}/reviews/bad-review`);
+    assert.ok(item, 'moderationQueue 에 원문이 있어야 한다');
+    assert.equal(item.matchedWord, '시발');
+    assert.equal(item.document.text, '아 시발 별로였다');
+  });
+
+  it('평범한 글은 건드리지 않는다', async () => {
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'places', PLACE, 'reviews', 'ok-review'), {
+        authorId: uid, authorNickname: '앨리스', authorTier: 'club10',
+        text: '무대 존나 멋있었다', likeCount: 0, createdAt: Timestamp.now(),
+      });
+    });
+    await settle();
+    assert.notEqual(await seedRead(`places/${PLACE}/reviews/ok-review`), undefined);
+  });
+});
 
 // 별도 사용자로 돈다 — 공유 uid 로 지우면 그 uid 를 계속 쓰는 다른 describe 가 깨진다.
 // 이 describe 가 끝나면 클라이언트의 로그인 사용자가 이 사람으로 남는데, 뒤의 saveBoard

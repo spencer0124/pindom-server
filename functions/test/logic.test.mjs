@@ -20,6 +20,7 @@ import {
   normalizeBoard,
   normalizePlace,
   containsBanned,
+  MAX_RADIUS_M,
   tierFor,
 } from '../lib/logic.js';
 
@@ -186,6 +187,12 @@ describe('normalizePlace', () => {
     assert.throws(() => normalizePlace({ ...input, radiusMeters: 0 }));
     assert.throws(() => normalizePlace({ ...input, radiusMeters: -5 }));
   });
+
+  it('radiusMeters 에 상한이 있다 — 오타 하나로 도시가 인증 구역이 되면 안 된다', () => {
+    assert.throws(() => normalizePlace({ ...input, radiusMeters: MAX_RADIUS_M + 1 }));
+    assert.throws(() => normalizePlace({ ...input, radiusMeters: 50_000 }));
+    assert.equal(normalizePlace({ ...input, radiusMeters: MAX_RADIUS_M }).doc.radiusMeters, MAX_RADIUS_M);
+  });
 });
 
 describe('containsBanned', () => {
@@ -204,5 +211,9 @@ describe('containsBanned', () => {
   it('공백·구두점으로 끊는 회피를 잡는다', () => {
     assert.equal(containsBanned('시 발'), '시발');
     assert.equal(containsBanned('s.h.i.t'), 'shit');
+  });
+
+  it('일상적인 강조어는 잡지 않는다 — 목록은 욕설용이지 말투 교정용이 아니다', () => {
+    assert.equal(containsBanned('무대 존나 멋있었다'), undefined);
   });
 });
