@@ -83,15 +83,27 @@ service cloud.firestore {
       // ponytail: 방문 검증 없음. 가본 적 없는 장소에도, 한 장소에 몇 개든 쓸 수 있다.
       // 막으려면 앱이 리뷰 문서 id 를 ticketId 로 쓰고 ticketId 를 필드로도 보내야 한다.
       // 그때 규칙은 get(tickets/$(ticketId)) 로 소유자와 장소를 확인하면 된다.
+      // reviewShape() 은 create·update 양쪽이 쓴다 — 크기 상한이 한쪽에만 있으면
+      // update 로 우회해 무제한 텍스트를 채워 넣을 수 있다.
+      function reviewShape() {
+        return request.resource.data.text is string
+               && request.resource.data.text.size() <= 2000
+               && (!('tags' in request.resource.data)
+                   || (request.resource.data.tags is list
+                       && request.resource.data.tags.size() <= 10));
+      }
+
       match /reviews/{reviewId} {
         allow read: if signedIn();
 
         allow create: if authorMatchesMe()
+                      && reviewShape()
                       && request.resource.data.likeCount == 0
                       && request.resource.data.createdAt == request.time;
 
         allow update: if isOwner(resource.data.authorId)
-                      && changed().hasOnly(['text', 'tags']);
+                      && changed().hasOnly(['text', 'tags'])
+                      && reviewShape();
 
         allow delete: if isOwner(resource.data.authorId);
       }
@@ -108,24 +120,62 @@ service cloud.firestore {
       // 회원가입 직후 앱이 자기 문서를 만든다. 카운터 3개는 반드시 0.
       // tier 도 함수 전용이다. 카운터만 고정하고 두면 가입 요청에 tier: 'clubGo' 를 끼워
       // 넣을 수 있고, 그 뒤 리뷰·게시글의 등급 대조가 위조된 값을 기준으로 통과한다.
+      // askAssistant 의 일일 상한도 함수 전용이다. 카운터처럼 여기서 안 막으면
+      // 가입 요청에 assistantCallCount: -1000000 을 끼워 넣어 상한을 영구히 무력화할 수 있다.
       allow create: if isOwner(uid)
+                    && request.resource.data.nickname is string
+                    && request.resource.data.nickname.size() >= 1
+                    && request.resource.data.nickname.size() <= 30
                     && request.resource.data.ticketBalance == 0
                     && request.resource.data.ticketsIssued == 0
                     && request.resource.data.placesVisited == 0
-                    && !('tier' in request.resource.data);
+                    && !('tier' in request.resource.data)
+                    && !('assistantCallDay' in request.resource.data)
+                    && !('assistantCallCount' in request.resource.data)
+                    && !('verifyCallDay' in request.resource.data)
+                    && !('verifyCallCount' in request.resource.data);
 
-      // 계약서가 사용자 편집을 허용하는 여섯 필드. hasOnly 가 나머지를 전부 막는다
-      // — tier, 카운터 3개, email, createdAt.
+      // 계약서가 사용자 편집을 허용하는 여섯 필드에 blockedUserIds 를 더한다.
+      // hasOnly 가 나머지를 전부 막는다 — tier, 카운터 3개, email, createdAt.
+      // 차단은 값이 걸린 데이터가 아니라 본인 문서 안의 목록이라 함수를 거칠 이유가 없다.
+      // 실제 가리기는 앱이 한다. 규칙은 쿼리를 심사할 뿐 결과를 걸러주지 않는다.
+      // 상한이 없으면 문서가 1MB 한도까지 자라고, 그러면 프로필을 읽는 모든 화면이
+      // (피드·리뷰가 작성자 정보를 여기서 비정규화해 들고 있어서) 같이 무거워진다.
       allow update: if isOwner(uid)
-                    && changed().hasOnly(['nickname', 'avatarUrl', 'bio',
-                                          'followedArtistIds', 'profileVisibility', 'locale']);
+                    && changed().hasOnly(['nickname', 'avatarUrl', 'bio', 'followedArtistIds',
+                                          'profileVisibility', 'locale', 'blockedUserIds'])
+                    && request.resource.data.nickname is string
+                    && request.resource.data.nickname.size() <= 30
+                    && (!('bio' in request.resource.data)
+                        || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))
+                    && (!('followedArtistIds' in request.resource.data)
+                        || (request.resource.data.followedArtistIds is list
+                            && request.resource.data.followedArtistIds.size() <= 200))
+                    && (!('blockedUserIds' in request.resource.data)
+                        || (request.resource.data.blockedUserIds is list
+                            && request.resource.data.blockedUserIds.size() <= 1000));
 
       allow delete: if false;
 
-      // 내 지도 — 챗봇이 추천한 곳 중 본인이 담아둔 것. 값이 걸린 데이터가 아니라
-      // 북마크라서 함수를 거치지 않는다. places 와 달리 인증 기준 좌표가 아니다.
+      // 내 지도 — 챗봇이 추천한 곳(assistant.ts 의 Suggestion) 중 본인이 담아둔 것.
+      // 값이 걸린 데이터가 아니라 북마크라서 함수를 거치지 않는다. places 와 달리
+      // 인증 기준 좌표가 아니다 — 좌표 형·범위만 본다. 지도 핀으로 바로 찍히는 값이라
+      // NaN 이나 문자열 좌표가 들어오면 지도가 깨진다.
       match /savedPlaces/{savedPlaceId} {
-        allow read, write: if isOwner(uid);
+        allow read, delete: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+                      && request.resource.data.name is string
+                      && request.resource.data.name != ''
+                      && request.resource.data.name.size() <= 100
+                      && request.resource.data.lat is number
+                      && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+                      && request.resource.data.lng is number
+                      && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+                      && request.resource.data.savedAt == request.time;
+
+        // 수정 없음 — 즐겨찾기를 고치고 싶으면 지우고 다시 담는다.
+        allow update: if false;
       }
     }
 
@@ -157,6 +207,16 @@ service cloud.firestore {
 
     // --- posts — 유일한 대량 사용자 작성 컬렉션 --------------------------------
 
+    // postShape() 은 create·update 양쪽이 쓴다 — 크기 상한이 한쪽에만 있으면
+    // update 로 우회해 무제한 텍스트·이미지를 채워 넣을 수 있다.
+    function postShape() {
+      return request.resource.data.body is string
+             && request.resource.data.body.size() <= 5000
+             && (!('imageUrls' in request.resource.data)
+                 || (request.resource.data.imageUrls is list
+                     && request.resource.data.imageUrls.size() <= 9));
+    }
+
     match /posts/{postId} {
       allow read: if signedIn();
 
@@ -165,15 +225,39 @@ service cloud.firestore {
       // 게시판이 실제로 있는지 본다. 없으면 어느 피드 쿼리에도 걸리지 않는 글이 되고,
       // 그런 글은 작성자에게도 안 보이면서 컬렉션에는 남는다. 읽기 한 번의 값은 한다.
       allow create: if authorMatchesMe()
+                    && postShape()
                     && exists(/databases/$(database)/documents/boards/$(request.resource.data.boardId))
                     && request.resource.data.likeCount == 0
                     && request.resource.data.commentCount == 0
                     && request.resource.data.createdAt == request.time;
 
       allow update: if isOwner(resource.data.authorId)
-                    && changed().hasOnly(['body', 'imageUrls']);
+                    && changed().hasOnly(['body', 'imageUrls'])
+                    && postShape();
 
       allow delete: if isOwner(resource.data.authorId);
+    }
+
+    // --- reports — 신고 접수함 (Apple 심사 가이드라인 1.2) ----------------------
+
+    // 넣기만 하는 상자다. 신고자 본인도 못 읽는다 — 읽기를 열면 이 컬렉션이 곧
+    // "누가 누구를 신고했는가" 명단이 되고, 신고 대상이 그걸 조회할 수 있게 된다.
+    // 처리는 Firebase 콘솔에서 본다.
+    match /reports/{reportId} {
+      // hasOnly 로 정확히 이 네 필드만 — 아니면 여분 필드로 문서를 부풀릴 수 있다.
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasOnly(
+                         ['reporterId', 'targetType', 'targetId', 'reason', 'createdAt'])
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.targetType in ['post', 'comment', 'review', 'photo', 'user']
+                    && request.resource.data.targetId is string
+                    && request.resource.data.targetId != ''
+                    && request.resource.data.targetId.size() <= 128
+                    && request.resource.data.reason is string
+                    && request.resource.data.reason.size() <= 500
+                    && request.resource.data.createdAt == request.time;
+
+      allow read, update, delete: if false;
     }
 
     // --- verificationSessions — verifyLocation 전용 ---------------------------

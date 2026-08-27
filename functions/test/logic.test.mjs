@@ -19,6 +19,7 @@ import {
   normalizeArtist,
   normalizeBoard,
   normalizePlace,
+  containsBanned,
   tierFor,
 } from '../lib/logic.js';
 
@@ -184,5 +185,24 @@ describe('normalizePlace', () => {
   it('radiusMeters 는 양수다', () => {
     assert.throws(() => normalizePlace({ ...input, radiusMeters: 0 }));
     assert.throws(() => normalizePlace({ ...input, radiusMeters: -5 }));
+  });
+});
+
+describe('containsBanned', () => {
+  it('평범한 글은 통과한다', () => {
+    assert.equal(containsBanned('주문진 방파제 다녀왔어요. 사진 잘 나왔습니다'), undefined);
+    // 공백을 지우고 보기 때문에 이런 문장이 걸리면 안 된다.
+    assert.equal(containsBanned('아무것도 보지 못했다'), undefined);
+    assert.equal(containsBanned('떡을 씹었다'), undefined);
+  });
+
+  it('금칙어를 잡는다', () => {
+    assert.equal(containsBanned('아 시발 뭐야'), '시발');
+    assert.equal(containsBanned('what the FUCK'), 'fuck');
+  });
+
+  it('공백·구두점으로 끊는 회피를 잡는다', () => {
+    assert.equal(containsBanned('시 발'), '시발');
+    assert.equal(containsBanned('s.h.i.t'), 'shit');
   });
 });

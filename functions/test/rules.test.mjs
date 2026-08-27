@@ -13,7 +13,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
 import {
-  Timestamp, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where,
+  Timestamp, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { deleteObject, listAll, ref, uploadBytes } from 'firebase/storage';
 
@@ -96,6 +96,33 @@ describe('users', () => {
   it('타인 문서는 읽지도 쓰지도 못함', async () => {
     await assertFails(getDoc(doc(bob(), 'users', ALICE)));
     await assertFails(updateDoc(doc(bob(), 'users', ALICE), { nickname: '탈취' }));
+  });
+});
+
+describe('savedPlaces', () => {
+  const path = (db, uid, id) => doc(db, 'users', uid, 'savedPlaces', id);
+  const saved = (over = {}) => ({
+    name: '해운대', category: '해변', address: '', lat: 35.16, lng: 129.16,
+    source: 'kakao', sourceId: 'kakao_1', savedAt: serverTimestamp(), ...over,
+  });
+
+  it('본인 것만 담고, 지운다', async () => {
+    await assertSucceeds(setDoc(path(alice(), ALICE, 'kakao_1'), saved()));
+    await assertFails(setDoc(path(bob(), ALICE, 'kakao_2'), saved({ sourceId: 'kakao_2' })));
+    await assertSucceeds(getDoc(path(alice(), ALICE, 'kakao_1')));
+    await assertFails(getDoc(path(bob(), ALICE, 'kakao_1')));
+    await assertSucceeds(deleteDoc(path(alice(), ALICE, 'kakao_1')));
+  });
+
+  it('좌표가 이상하면 거부 — 지도 핀이 깨진다', async () => {
+    await assertFails(setDoc(path(alice(), ALICE, 'bad1'), saved({ lat: '35.16' })));
+    await assertFails(setDoc(path(alice(), ALICE, 'bad2'), saved({ lat: 200 })));
+    await assertFails(setDoc(path(alice(), ALICE, 'bad3'), saved({ name: '' })));
+  });
+
+  it('수정은 없음 — 지우고 다시 담아야 한다', async () => {
+    await setDoc(path(alice(), ALICE, 'kakao_3'), saved({ sourceId: 'kakao_3' }));
+    await assertFails(updateDoc(path(alice(), ALICE, 'kakao_3'), { name: '고침' }));
   });
 });
 
@@ -187,6 +214,17 @@ describe('나머지', () => {
     await assertFails(setDoc(doc(eve, 'posts', 'p7'), post({ authorId: 'eve', authorNickname: '이브' })));
   });
 
+  it('본문·이미지 개수에 상한이 있다', async () => {
+    await assertFails(setDoc(doc(alice(), 'posts', 'p8'), post({ body: 'x'.repeat(5001) })));
+    await assertFails(setDoc(doc(alice(), 'posts', 'p9'), post({ imageUrls: Array(10).fill('u') })));
+    await assertSucceeds(setDoc(doc(alice(), 'posts', 'p10'), post({ imageUrls: Array(9).fill('u') })));
+  });
+
+  it('update 로 상한을 우회할 수 없다', async () => {
+    await setDoc(doc(alice(), 'posts', 'p11'), post());
+    await assertFails(updateDoc(doc(alice(), 'posts', 'p11'), { body: 'x'.repeat(5001) }));
+  });
+
   it('verificationSessions 는 클라이언트에게 완전히 닫혀 있음', async () => {
     await assertFails(getDoc(doc(alice(), 'verificationSessions', 's1')));
     await assertFails(setDoc(doc(alice(), 'verificationSessions', 's1'), { userId: ALICE }));
@@ -195,6 +233,60 @@ describe('나머지', () => {
   it('갤러리와 시드 컬렉션은 쓰기 불가', async () => {
     await assertFails(setDoc(doc(alice(), 'places', PLACE, 'gallery', 'g1'), { authorId: ALICE }));
     await assertFails(setDoc(doc(alice(), 'places', PLACE), { name: '가짜' }));
+  });
+});
+
+describe('reports · 차단 (Apple 1.2)', () => {
+  const report = (over = {}) => ({
+    reporterId: ALICE, targetType: 'post', targetId: 'p1',
+    reason: '욕설', createdAt: serverTimestamp(), ...over,
+  });
+
+  it('본인 이름으로만 신고할 수 있다', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'reports', 'r1'), report()));
+    await assertFails(setDoc(doc(alice(), 'reports', 'r2'), report({ reporterId: BOB })));
+  });
+
+  it('targetType 은 정해진 값만', async () => {
+    await assertFails(setDoc(doc(alice(), 'reports', 'r3'), report({ targetType: '아무거나' })));
+  });
+
+  it('createdAt 은 서버 시각이어야 한다 — 클라이언트 시각은 거부', async () => {
+    await assertFails(setDoc(doc(alice(), 'reports', 'r4'), report({ createdAt: Timestamp.now() })));
+  });
+
+  it('넣기만 하는 상자다 — 본인 신고도 못 읽고 못 지운다', async () => {
+    await assertFails(getDoc(doc(alice(), 'reports', 'r1')));
+    await assertFails(deleteDoc(doc(alice(), 'reports', 'r1')));
+  });
+
+  it('닉네임·소개는 길이 상한 안에서만', async () => {
+    await assertFails(updateDoc(doc(carol(), 'users', CAROL), { nickname: 'x'.repeat(31) }));
+    await assertFails(updateDoc(doc(carol(), 'users', CAROL), { bio: 'x'.repeat(501) }));
+    await assertSucceeds(updateDoc(doc(carol(), 'users', CAROL), { bio: 'x'.repeat(500) }));
+  });
+
+  it('신고에 없는 필드를 끼워 넣을 수 없다', async () => {
+    await assertFails(setDoc(doc(alice(), 'reports', 'rX'), {
+      reporterId: ALICE, targetType: 'post', targetId: 'p1',
+      reason: '욕설', createdAt: serverTimestamp(), extra: 'hi',
+    }));
+  });
+
+  it('blockedUserIds 는 본인이 고칠 수 있다', async () => {
+    await assertSucceeds(updateDoc(doc(carol(), 'users', CAROL), { blockedUserIds: [BOB] }));
+    await assertFails(updateDoc(doc(carol(), 'users', ALICE), { blockedUserIds: [BOB] }));
+  });
+
+  it('차단 목록에 상한이 있다', async () => {
+    const huge = Array.from({ length: 1001 }, (_, i) => `u${i}`);
+    await assertFails(updateDoc(doc(carol(), 'users', CAROL), { blockedUserIds: huge }));
+  });
+
+  it('차단을 끼워 넣어도 카운터는 못 건드린다', async () => {
+    await assertFails(updateDoc(doc(carol(), 'users', CAROL), {
+      blockedUserIds: [BOB], ticketBalance: 99,
+    }));
   });
 });
 

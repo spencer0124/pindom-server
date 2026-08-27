@@ -13,7 +13,7 @@ import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { deleteApp, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import {
-  Timestamp, connectFirestoreEmulator, doc, getDoc, getFirestore, setDoc,
+  Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getFirestore, setDoc,
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { connectStorageEmulator, getStorage, ref, uploadBytes } from 'firebase/storage';
@@ -308,16 +308,91 @@ describe('도착 검사', () => {
     assert.equal(res.reason, 'implausible_speed');
   });
 
-  it('그 거부 이후에도 도착 검사는 같은 세션에서 다시 돌지 않는다', async () => {
+  it('poor_accuracy 로 거부된 호출은 도착 검사를 소모하지 않는다', async () => {
+    // accuracy·radius·세션 내 속도 검사에서 먼저 거부된 호출은 도착 검사 결과를 쓰지도
+    // 않았으므로 세션에도 "체크됨" 을 남기면 안 된다 — 아니면 accuracy 를 일부러 나쁘게
+    // 보내 "체크됨" 도장만 받고 다음 호출에서 진짜 좌표로 도착 검사를 피해 갈 수 있다.
     const first = await invoke('verifyLocation', reading({ accuracy: 9999, lat: 38.5, lng: 128.5 }));
     assert.equal(first.reason, 'poor_accuracy');
     const second = await invoke('verifyLocation', reading({ sessionId: first.sessionId }));
-    // 두 번째 핑은 accuracy·radius 를 통과한다. 도착 검사가 세션당 한 번만 도는 게
-    // 맞다면 이미 첫 호출에서 소모돼 여기서는 통과한다.
+    // 두 번째 핑은 accuracy·radius·세션 내 속도를 전부 통과하지만, 도착 검사가 이제야
+    // 처음으로 돈다 — 여전히 거부돼야 한다.
+    assert.equal(second.verified, false);
+    assert.equal(second.reason, 'implausible_speed');
+  });
+
+  it('도착 검사가 실제로 판정을 내린 뒤에는 같은 세션에서 다시 돌지 않는다', async () => {
+    const first = await invoke('verifyLocation', reading());
+    assert.equal(first.reason, 'implausible_speed');
+    const second = await invoke('verifyLocation', reading({ sessionId: first.sessionId }));
+    // 첫 호출에서 도착 검사가 실제로 거부를 결정했으니 여기서는 소모된 게 맞다.
     assert.equal(second.verified, true);
   });
 });
 
+
+// 별도 사용자로 돈다 — 공유 uid 로 지우면 그 uid 를 계속 쓰는 다른 describe 가 깨진다.
+// 이 describe 가 끝나면 클라이언트의 로그인 사용자가 이 사람으로 남는데, 뒤의 saveBoard
+// 는 uid 를 안 보고 admin 클레임 유무만 보므로 상관없다.
+describe('deleteAccount', () => {
+  it('본인 데이터를 지우고, 본인이 넣은 신고는 지우지 않고 신원만 지운다', async () => {
+    const db = getFirestore(clientApp);
+    const storage = getStorage(clientApp);
+    const auth = getAuth(clientApp);
+
+    const cred = await createUserWithEmailAndPassword(auth, 'bob-del@example.com', 'pw1234');
+    const delUid = cred.user.uid;
+    await setDoc(doc(db, 'users', delUid), {
+      email: 'bob-del@example.com', nickname: '밥',
+      ticketBalance: 0, ticketsIssued: 0, placesVisited: 0,
+    });
+    await uploadBytes(ref(storage, `tickets/${delUid}/photo.jpg`), new Uint8Array(8), {
+      contentType: 'image/jpeg',
+    });
+
+    // 티켓·리뷰·신고는 규칙상 클라이언트가 직접 못 써서 시드로 넣는다.
+    let ticketId, reviewId, reportId;
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      const seed = ctx.firestore();
+      const ticketRef = doc(collection(seed, 'tickets'));
+      ticketId = ticketRef.id;
+      await setDoc(ticketRef, {
+        userId: delUid, placeId: PLACE, placeName: '주문진 방파제',
+        photoPath: `tickets/${delUid}/photo.jpg`, photoUrl: 'x', serial: 'PD-DEL0-DEL0-DEL0',
+        visibility: 'private', spent: false, issuedAt: Timestamp.now(),
+      });
+      const reviewRef = doc(collection(seed, `places/${PLACE}/reviews`));
+      reviewId = reviewRef.id;
+      await setDoc(reviewRef, {
+        authorId: delUid, authorNickname: '밥', authorTier: 'club10',
+        text: '좋았다', likeCount: 0, createdAt: Timestamp.now(),
+      });
+      const reportRef = doc(collection(seed, 'reports'));
+      reportId = reportRef.id;
+      await setDoc(reportRef, {
+        reporterId: delUid, targetType: 'post', targetId: 'p1',
+        reason: '욕설', createdAt: Timestamp.now(),
+      });
+    });
+
+    await invoke('deleteAccount', {});
+
+    assert.equal(await seedRead(`users/${delUid}`), undefined);
+    assert.equal(await seedRead(`tickets/${ticketId}`), undefined);
+    assert.equal(await seedRead(`places/${PLACE}/reviews/${reviewId}`), undefined);
+
+    // 신고는 지워지지 않고 남되, 신원만 익명화된다 — 다른 사용자에 대한 모더레이션
+    // 근거를 계정 삭제로 함께 지울 수 없어야 한다.
+    const report = await seedRead(`reports/${reportId}`);
+    assert.notEqual(report, undefined);
+    assert.equal(report.reporterId, 'deleted');
+
+    // Auth 계정이 실제로 지워졌다면 같은 이메일로 다시 가입할 수 있어야 한다.
+    await assert.doesNotReject(
+      createUserWithEmailAndPassword(auth, 'bob-del@example.com', 'pw5678'),
+    );
+  });
+});
 
 // saveBoard 의 방어선은 admin 커스텀 클레임 하나다. 입력 검증은 normalizeBoard 가 맡고
 // logic.test.mjs 가 경계를 찍는다. 여기서 볼 것은 클레임 없는 계정이 막히는가뿐이다.

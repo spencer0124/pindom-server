@@ -27,6 +27,8 @@
     border: 1px solid var(--line); background: var(--panel); color: var(--text);
   }
   button.primary { background: var(--accent); border-color: var(--accent); color: #0d0d0f; font-weight: 700; }
+  button.danger { color: var(--bad); border-color: transparent; background: transparent; padding: 8px 8px; }
+  button.danger:hover { border-color: var(--bad); }
   button:disabled { opacity: .5; cursor: default; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
@@ -59,7 +61,7 @@
 <body>
 <main>
   <h1>PINDOM 관리</h1>
-  <p class="sub">아티스트·게시판·촬영지를 추가하고 고친다. 어느 것도 여기서 지울 수는 없다 — 다른 문서가 id 로 매달려 있어서다.</p>
+  <p class="sub">아티스트·게시판·촬영지를 추가하고 고친다. 촬영지는 여기서 지울 수 없다 — 티켓이 id 로 매달려 있어서다. 아티스트·게시판은 게시글·촬영지가 안 딸려 있으면 지울 수 있다.</p>
 
   <div id="gate">
     <button id="signIn" class="primary">Google 로 로그인</button>
@@ -218,6 +220,8 @@ if (local) {
 const saveArtist = httpsCallable(fns, 'saveArtist');
 const saveBoard = httpsCallable(fns, 'saveBoard');
 const savePlace = httpsCallable(fns, 'savePlace');
+const deleteArtistFn = httpsCallable(fns, 'deleteArtist');
+const deleteBoardFn = httpsCallable(fns, 'deleteBoard');
 
 let artists = [];
 let boards = [];
@@ -281,10 +285,13 @@ function renderArtists() {
     <tr>
       <td class="id">${esc(a.id)}</td>
       <td>${HEX_COLOR_RE.test(a.accentColor ?? '') ? `<span class="swatch" style="background:${a.accentColor}"></span> ` : ''}${esc(a.name?.ko ?? '')}</td>
-      <td><button type="button" data-edit="${esc(a.id)}">수정</button></td>
+      <td><button type="button" data-edit="${esc(a.id)}">수정</button> <button type="button" class="danger" data-delete="${esc(a.id)}">삭제</button></td>
     </tr>`).join('') : emptyRow(3, '아직 등록된 아티스트가 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('artistRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editArtist(artists.find((a) => a.id === btn.dataset.edit));
+  }
+  for (const btn of $('artistRows').querySelectorAll('[data-delete]')) {
+    btn.onclick = () => onDeleteArtist(btn.dataset.delete, btn);
   }
 
   // 게시판 폼의 아티스트 선택, 촬영지 폼의 연결 아티스트 체크박스 — 둘 다 여기서만 채운다.
@@ -303,10 +310,13 @@ function renderBoards() {
       <td>${b.kind === 'free' ? '자유' : '아이돌'}</td>
       <td>${Number(b.order ?? 0)}</td>
       <td>${b.archived ? '보관' : '노출'}</td>
-      <td><button type="button" data-edit="${esc(b.id)}">수정</button></td>
+      <td><button type="button" data-edit="${esc(b.id)}">수정</button> <button type="button" class="danger" data-delete="${esc(b.id)}">삭제</button></td>
     </tr>`).join('') : emptyRow(6, '아직 등록된 게시판이 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('boardRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editBoard(boards.find((b) => b.id === btn.dataset.edit));
+  }
+  for (const btn of $('boardRows').querySelectorAll('[data-delete]')) {
+    btn.onclick = () => onDeleteBoard(btn.dataset.delete, btn);
   }
 }
 
@@ -321,6 +331,32 @@ function renderPlaces() {
     </tr>`).join('') : emptyRow(5, '아직 등록된 촬영지가 없다. 아래에서 추가하면 여기 뜬다.');
   for (const btn of $('placeRows').querySelectorAll('[data-edit]')) {
     btn.onclick = () => editPlace(places.find((p) => p.id === btn.dataset.edit));
+  }
+}
+
+// ── 삭제 ──────────────────────────────────────────────────────────────────────
+
+async function onDeleteArtist(artistId, btn) {
+  if (!confirm(`${artistId} 를 지운다. 되돌릴 수 없다.`)) return;
+  btn.disabled = true;
+  try {
+    await deleteArtistFn({ artistId });
+    await load();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+}
+
+async function onDeleteBoard(boardId, btn) {
+  if (!confirm(`${boardId} 를 지운다. 되돌릴 수 없다.`)) return;
+  btn.disabled = true;
+  try {
+    await deleteBoardFn({ boardId });
+    await load();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
   }
 }
 

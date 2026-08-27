@@ -1,12 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, GeoPoint, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { setGlobalOptions } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
-import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 
 import {
   ACCURACY_GATE_M,
@@ -17,6 +18,8 @@ import {
   MAX_READINGS,
   SESSION_SPEED_KMH,
   TICKET_SPEED_KMH,
+  VERIFY_DAILY_LIMIT,
+  containsBanned,
   cooldownEndsAt,
   distanceMeters,
   effectiveDistance,
@@ -121,6 +124,22 @@ export const verifyLocation = onCall(async (req) => {
   const uid = requireUid(req);
   const data = (req.data ?? {}) as Data;
 
+  // 상한 먼저. 세션 문서는 실패해도 생기고 verifyCount 는 성공할 때마다 늘어서,
+  // 이걸 안 막으면 반복 호출만으로 둘 다 무한히 부풀릴 수 있다.
+  const verifyUserRef = db.doc(`users/${uid}`);
+  const verifyToday = dayKeyKst(new Date());
+  await db.runTransaction(async (tx) => {
+    const user = (await tx.get(verifyUserRef)).data() ?? {};
+    const count = nextCallCount(user.verifyCallDay, user.verifyCallCount, verifyToday);
+    if (count > VERIFY_DAILY_LIMIT) {
+      throw new HttpsError('resource-exhausted', '오늘 인증 시도 한도를 다 썼다', {
+        errorCode: 'verify_daily_limit',
+        limit: VERIFY_DAILY_LIMIT,
+      });
+    }
+    tx.set(verifyUserRef, { verifyCallDay: verifyToday, verifyCallCount: count }, { merge: true });
+  });
+
   const placeId = str(data, 'placeId');
   const lat = num(data, 'lat');
   const lng = num(data, 'lng');
@@ -164,15 +183,20 @@ export const verifyLocation = onCall(async (req) => {
     arrivalChecked = session.arrivalChecked === true;
   }
 
-  // 도착 검사(직전 티켓에서 여기까지 낼 수 있는 속도인가)는 세션당 정확히 한 번, 여기서
-  // 계산해 둔다. accuracy·radius 거부도 세션 문서를 만들기 때문에, "sessionId 없음" 으로
-  // 아직 안 돌았음을 판단하면 다음 호출에서 세션이 있다고 오판해 검사를 영원히 건너뛴다.
-  // 세션 문서의 플래그로만 판단하고, 반환은 accuracy·radius·세션 내 속도 검사가 전부
-  // 통과한 뒤로 미룬다 — 부정확한 GPS 로 거리 조작 의심을 먼저 뒤집어씌우지 않기 위해서다.
-  const arrivalImplausible = !arrivalChecked && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt));
+  // 도착 검사(직전 티켓에서 여기까지 낼 수 있는 속도인가)는 세션당 정확히 한 번만 세운다.
+  // isMock·poor_accuracy·out_of_radius 로 먼저 거부되는 호출에서 계산해 버리면, 그 결과를
+  // 쓰지도 않은 채 arrivalChecked 만 true 로 남아 실제 속도 검사가 영원히 건너뛰어진다 —
+  // 세션 문서를 만들면서 sessionId 를 돌려주므로 공격자는 accuracy 를 일부러 나쁘게 보내
+  // "체크됨" 도장만 받고, 다음 호출에서 진짜 좌표로 검사를 피해 갈 수 있었다. 그래서 이
+  // 검사는 그 결과가 실제로 최종 판정(거부든 통과든)을 결정하는 지점에서만 계산하고 세션에
+  // 박는다 — 그 앞의 accuracy·radius·세션 내 속도 검사가 전부 통과한 뒤.
+  const arrivalCheckedNow = !arrivalChecked;
 
-  const reject = async (reason: string, append: boolean) => {
-    await writeSession(sessionRef, uid, placeId, readings, append ? newReading() : undefined, null);
+  const reject = async (reason: string, append: boolean, checksArrival = false) => {
+    await writeSession(
+      sessionRef, uid, placeId, readings, append ? newReading() : undefined, null,
+      checksArrival && arrivalCheckedNow,
+    );
     return {
       sessionId: sessionRef.id,
       verified: false,
@@ -206,11 +230,14 @@ export const verifyLocation = onCall(async (req) => {
     }
   }
 
-  if (arrivalImplausible) return reject('implausible_speed', true);
+  // 앞의 accuracy·radius·세션 내 속도 검사를 전부 통과한 뒤에야 계산한다 — 여기 도달한
+  // 호출만 이 판정을 최종 결과로 쓰고, arrivalChecked 도 이 시점에만 세션에 박힌다.
+  const arrivalImplausible = arrivalCheckedNow && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt));
+  if (arrivalImplausible) return reject('implausible_speed', true, true);
 
   const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);
   await Promise.all([
-    writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt),
+    writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt, arrivalCheckedNow),
     // 장소/상세의 방문 인증 수. issueTicket 은 여기를 손대지 않는다 — 그랜트를 받고도
     // 티켓을 안 받을 수 있고, 이 숫자는 "여기 실제로 온 사람" 이지 발행 수가 아니다.
     placeSnap.ref.update({ verifyCount: FieldValue.increment(1) }),
@@ -235,6 +262,7 @@ async function writeSession(
   existing: Reading[],
   append: Reading | undefined,
   grantExpiresAt: Timestamp | null,
+  arrivalChecked = false,
 ): Promise<void> {
   const readings = append ? [...existing, append].slice(-MAX_READINGS) : existing;
   const startedAt = Timestamp.now();
@@ -243,8 +271,10 @@ async function writeSession(
       userId: uid,
       placeId,
       readings,
-      // 이 호출로 도착 검사가 계산됐으니(그 결과가 거부든 통과든) 다시 돌 일 없다.
-      arrivalChecked: true,
+      // 이 판정이 실제로 도착 검사를 최종 결과로 썼을 때만 true 로 박는다 — 그래야 다음
+      // 호출이 진짜로 건너뛰어도 되는지 안다. merge:true 라 false 일 땐 필드를 안 건드려
+      // 기존에 세워진 true 를 실수로 되돌리지 않는다.
+      ...(arrivalChecked && { arrivalChecked: true }),
       status: grantExpiresAt ? 'verified' : 'active',
       ...(grantExpiresAt && { grantExpiresAt }),
       // TTL 정책이 지우는 필드. grantExpiresAt 은 실패한 세션에 없어서 이 역할을 못 한다.
@@ -303,23 +333,6 @@ export const issueTicket = onCall(async (req) => {
   checkGrant(session, uid);
   const placeId = session!.placeId as string;
 
-  // 이 쿼리 하나가 쿨다운과 첫 방문 여부를 함께 답한다 — 결과가 비어 있으면 첫 방문이다.
-  const previous = await db
-    .collection('tickets')
-    .where('userId', '==', uid)
-    .where('placeId', '==', placeId)
-    .orderBy('issuedAt', 'desc')
-    .limit(1)
-    .get();
-  const lastIssuedAt = (previous.docs[0]?.data().issuedAt as Timestamp | undefined)?.toDate();
-  const firstVisit = !lastIssuedAt;
-  if (lastIssuedAt) {
-    const nextAvailableAt = cooldownEndsAt(lastIssuedAt);
-    if (nextAvailableAt.getTime() > Date.now()) {
-      throw precondition('cooldown_active', { nextAvailableAt: nextAvailableAt.toISOString() });
-    }
-  }
-
   // 경로 접두사를 보지 않으면 남의 사진 경로를 붙여 티켓을 만들 수 있다.
   if (!photoPath.startsWith(`tickets/${uid}/`)) {
     throw new HttpsError('invalid-argument', 'photoPath 가 본인 경로가 아니다');
@@ -331,11 +344,31 @@ export const issueTicket = onCall(async (req) => {
   const placeRef = db.doc(`places/${placeId}`);
   const serial = mintSerial(randomBytes(8));
 
+  // 쿨다운·첫 방문 여부 쿼리도 트랜잭션 안에서 본다. 밖에서 보면 같은 장소에 그랜트
+  // 두 개(각각 다른 세션)를 받아 issueTicket 을 동시에 두 번 불렀을 때, 둘 다 "이전 티켓
+  // 없음" 을 보고 통과해 티켓 두 장과 placesVisited 이중 증가로 이어진다.
+  const previousQuery = db
+    .collection('tickets')
+    .where('userId', '==', uid)
+    .where('placeId', '==', placeId)
+    .orderBy('issuedAt', 'desc')
+    .limit(1);
+
   const { ticketBalance, tier } = await db.runTransaction(async (tx) => {
-    const [sessionSnap, userSnap, placeSnap] = await Promise.all([
-      tx.get(sessionRef), tx.get(userRef), tx.get(placeRef),
+    const [sessionSnap, userSnap, placeSnap, previousSnap] = await Promise.all([
+      tx.get(sessionRef), tx.get(userRef), tx.get(placeRef), tx.get(previousQuery),
     ]);
     checkGrant(sessionSnap.data(), uid);
+
+    const lastIssuedAt = (previousSnap.docs[0]?.data().issuedAt as Timestamp | undefined)?.toDate();
+    const firstVisit = !lastIssuedAt;
+    if (lastIssuedAt) {
+      const nextAvailableAt = cooldownEndsAt(lastIssuedAt);
+      if (nextAvailableAt.getTime() > Date.now()) {
+        throw precondition('cooldown_active', { nextAvailableAt: nextAvailableAt.toISOString() });
+      }
+    }
+
     const user = userSnap.data() ?? {};
     const ticketsIssued = ((user.ticketsIssued as number) ?? 0) + 1;
     const balance = ((user.ticketBalance as number) ?? 0) + 1;
@@ -347,6 +380,7 @@ export const issueTicket = onCall(async (req) => {
       userId: uid,
       placeId,
       placeName,
+      photoPath,
       photoUrl,
       serial,
       visibility,
@@ -421,6 +455,18 @@ async function downloadUrl(path: string): Promise<string> {
   }
   const bucket = file.bucket.name;
   return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+}
+
+/**
+ * 토큰을 무조건 새로 갈아 끼운다. 다운로드 URL 은 Storage 규칙을 완전히 우회한다 —
+ * 토큰이 곧 권한이라, 공개 기간에 URL 을 저장해 둔 사람은 비공개로 돌려도 계속 볼 수
+ * 있다. syncGalleryOnVisibility 가 공개→비공개 전환에서 이 함수를 부른다.
+ */
+async function rotateDownloadUrl(path: string): Promise<string> {
+  const file = getStorage().bucket().file(path);
+  const token = randomUUID();
+  await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+  return `https://firebasestorage.googleapis.com/v0/b/${file.bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -629,17 +675,21 @@ export const askAssistant = onCall(
     const message = str(data, 'message').slice(0, MAX_MESSAGE_CHARS);
 
     // 상한 먼저. 모델을 부른 뒤에 세면 초과분이 이미 결제된 뒤다.
+    // 읽기·검사·쓰기를 트랜잭션으로 묶는다 — 아니면 동시에 날아온 요청들이 전부 같은
+    // count 를 읽고 전부 통과해, 상한이 사실상 "동시 요청 수 × 30" 이 된다.
     const userRef = db.doc(`users/${uid}`);
     const today = dayKeyKst(new Date());
-    const user = (await userRef.get()).data() ?? {};
-    const count = nextCallCount(user.assistantCallDay, user.assistantCallCount, today);
-    if (count > DAILY_CALL_LIMIT) {
-      throw new HttpsError('resource-exhausted', '오늘 대화 한도를 다 썼다', {
-        errorCode: 'assistant_daily_limit',
-        limit: DAILY_CALL_LIMIT,
-      });
-    }
-    await userRef.set({ assistantCallDay: today, assistantCallCount: count }, { merge: true });
+    await db.runTransaction(async (tx) => {
+      const user = (await tx.get(userRef)).data() ?? {};
+      const count = nextCallCount(user.assistantCallDay, user.assistantCallCount, today);
+      if (count > DAILY_CALL_LIMIT) {
+        throw new HttpsError('resource-exhausted', '오늘 대화 한도를 다 썼다', {
+          errorCode: 'assistant_daily_limit',
+          limit: DAILY_CALL_LIMIT,
+        });
+      }
+      tx.set(userRef, { assistantCallDay: today, assistantCallCount: count }, { merge: true });
+    });
 
     // 어디를 기준으로 찾을지. 좌표는 촬영지 문서에서 오고 클라이언트가 보낸 값을 쓰지 않는다.
     const near =
@@ -705,8 +755,8 @@ export const askAssistant = onCall(
  * admin 커스텀 클레임이 있는 계정만 부를 수 있다. 클레임은
  * `npm --prefix functions run grant-admin` 으로 붙인다.
  *
- * 삭제는 없다. 게시글이 boardId 로 게시판을 가리키고 있어 문서를 지우면 그 글들이
- * 존재하지 않는 게시판에 매달린다. 목록에서 내리는 것은 archived 로 한다.
+ * 삭제는 `deleteBoard` 가 한다 — 게시글이 있으면 거부한다. 게시글 없이 그냥
+ * 내려두고 싶으면 archived 를 쓴다.
  */
 export const saveBoard = onCall(async (req) => {
   requireAdmin(req);
@@ -740,7 +790,7 @@ export const saveBoard = onCall(async (req) => {
 // saveArtist — 관리 도구 전용
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 아티스트 생성·수정. 삭제 없음 — boards·places 가 artistId 로 가리킨다. */
+/** 아티스트 생성·수정. 삭제는 `deleteArtist` 가 한다 — 게시판이나 촬영지가 딸려 있으면 거부한다. */
 export const saveArtist = onCall(async (req) => {
   requireAdmin(req);
 
@@ -801,6 +851,59 @@ export const savePlace = onCall(async (req) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// deleteBoard / deleteArtist — 관리 도구 전용
+//
+// 참조가 하나라도 있으면 거부한다. 연쇄 삭제는 안 한다 — 티켓·글 이력을 같이
+// 지우는 건 되돌릴 수 없고, 이 함수가 조용히 결정할 일이 아니다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const deleteBoard = onCall(async (req) => {
+  requireAdmin(req);
+  const boardId = (req.data as Data)?.boardId;
+  if (typeof boardId !== 'string' || boardId === '') {
+    throw new HttpsError('invalid-argument', 'boardId 가 없다');
+  }
+
+  const postSnap = await db.collection('posts').where('boardId', '==', boardId).limit(1).get();
+  if (!postSnap.empty) {
+    throw new HttpsError('failed-precondition', `게시글이 있는 게시판은 못 지운다: ${boardId}`);
+  }
+
+  const ref = db.doc(`boards/${boardId}`);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', `없는 게시판이다: ${boardId}`);
+  await ref.delete();
+  return { boardId };
+});
+
+export const deleteArtist = onCall(async (req) => {
+  requireAdmin(req);
+  const artistId = (req.data as Data)?.artistId;
+  if (typeof artistId !== 'string' || artistId === '') {
+    throw new HttpsError('invalid-argument', 'artistId 가 없다');
+  }
+
+  const [boardSnap, placeSnap, courseSnap] = await Promise.all([
+    db.doc(`boards/${artistId}`).get(),
+    db.collection('places').where('artistIds', 'array-contains', artistId).limit(1).get(),
+    db.collection('courses').where('artistId', '==', artistId).limit(1).get(),
+  ]);
+  if (boardSnap.exists) {
+    throw new HttpsError('failed-precondition', `게시판이 딸린 아티스트는 못 지운다: ${artistId}`);
+  }
+  if (!placeSnap.empty) {
+    throw new HttpsError('failed-precondition', `촬영지가 연결된 아티스트는 못 지운다: ${artistId}`);
+  }
+  if (!courseSnap.empty) {
+    throw new HttpsError('failed-precondition', `코스가 딸린 아티스트는 못 지운다: ${artistId}`);
+  }
+
+  const ref = db.doc(`artists/${artistId}`);
+  if (!(await ref.get()).exists) throw new HttpsError('not-found', `없는 아티스트다: ${artistId}`);
+  await ref.delete();
+  return { artistId };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // getRoute — 코스를 지도에 선으로 그린다
 //
 // 촬영지 좌표는 서버가 읽는다. 코스 화면과 챗봇의 "지도에서 코스 보기" 가 같은 함수를 쓴다.
@@ -812,6 +915,9 @@ export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) =>
 
   const placeIds = Array.isArray(data.placeIds) ? data.placeIds.filter((v) => typeof v === 'string') : [];
   if (placeIds.length === 0) throw new HttpsError('invalid-argument', 'placeIds 가 비었다');
+  // fetchRoute 는 경유지를 30개로 자르지만, 자르기 전에 이미 읽기가 다 끝난 뒤다.
+  // 상한 없이 두면 호출 한 번으로 placeIds 개수만큼 Firestore 읽기가 나간다.
+  if (placeIds.length > 30) throw new HttpsError('invalid-argument', 'placeIds 는 최대 30개다');
 
   const stops = await Promise.all((placeIds as string[]).map(placeCoords));
 
@@ -861,5 +967,112 @@ export const syncGalleryOnVisibility = onDocumentUpdated('tickets/{ticketId}', a
     });
   } else {
     await galleryRef.delete();
+
+    // 공개였던 동안 URL 을 저장해 둔 사람은 토큰을 안 갈면 비공개로 돌려도 계속 본다 —
+    // 다운로드 URL 자체가 Storage 규칙을 우회하는 권한이라서다. photoPath 가 없는
+    // 옛 티켓(이 필드를 넣기 전 발급분)은 건너뛴다 — 회전시킬 원본 경로를 모른다.
+    const photoPath = after.photoPath as string | undefined;
+    if (photoPath) {
+      const photoUrl = await rotateDownloadUrl(photoPath);
+      await event.data!.after.ref.update({ photoUrl });
+    }
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 금칙어 필터 — Apple 심사 가이드라인 1.2
+//
+// 규칙으로는 낱말 목록을 볼 수 없다 (정규식도 배열 순회도 없다). 그래서 트리거가 맡는다.
+// create 만 보면 깨끗한 글을 올린 뒤 고쳐 넣는 우회가 그대로 열려 있어 update 도 본다.
+//
+// 되받는 방식은 삭제다. 숨김 필드로 두면 피드·갤러리 쿼리와 색인을 전부 고쳐야 하는데,
+// 걸리는 글이 드문 데 비해 값이 너무 비싸다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function moderate(
+  snap: FirebaseFirestore.DocumentSnapshot | undefined,
+  fields: string[],
+): Promise<void> {
+  const data = snap?.data();
+  if (!data) return;
+  const text = fields.map((f) => (typeof data[f] === 'string' ? (data[f] as string) : '')).join(' ');
+  const hit = containsBanned(text);
+  if (!hit) return;
+  console.warn(`금칙어로 삭제: ${snap!.ref.path} (${hit})`);
+  await snap!.ref.delete();
+}
+
+export const moderatePost = onDocumentWritten('posts/{postId}', (event) =>
+  moderate(event.data?.after, ['body']));
+
+export const moderateReview = onDocumentWritten('places/{placeId}/reviews/{reviewId}', (event) =>
+  moderate(event.data?.after, ['text']));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deleteAccount — 회원탈퇴 (Apple 심사 가이드라인 5.1.1(v))
+//
+// 계정을 만들게 하는 앱은 앱 안에서 계정 삭제까지 제공해야 한다. 비활성화나 문의 안내로는
+// 통과하지 못한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Auth 계정은 마지막에 지운다. 중간에 실패해도 사용자가 그대로 남아 다시 부를 수 있다 —
+ * 먼저 지우면 남은 데이터를 지울 주체가 사라진다.
+ *
+ * ponytail: 컬렉션당 한 번씩 읽고 끝이다 — 페이지네이션 없음. 한 사람 몫이라 수천 건이
+ * 될 일이 없다. 넘치기 시작하면 쿼리를 커서로 돌린다.
+ */
+export const deleteAccount = onCall(async (req) => {
+  const uid = requireUid(req);
+
+  // 티켓과 갤러리는 짝이다 — 갤러리 문서 id 가 티켓 id 다 (issueTicket 참고).
+  const tickets = await db.collection('tickets').where('userId', '==', uid).get();
+  const refs = tickets.docs.flatMap((d) => [
+    d.ref,
+    db.doc(`places/${d.data().placeId}/gallery/${d.id}`),
+  ]);
+
+  for (const q of [
+    db.collection('posts').where('authorId', '==', uid),
+    db.collectionGroup('reviews').where('authorId', '==', uid),
+    db.collection('raffleEntries').where('userId', '==', uid),
+    db.collection('verificationSessions').where('userId', '==', uid),
+  ]) {
+    refs.push(...(await q.get()).docs.map((d) => d.ref));
+  }
+
+  const writer = db.bulkWriter();
+  refs.forEach((ref) => writer.delete(ref));
+
+  // 본인이 넣은 신고는 지우지 않고 신원만 지운다 — 이건 그 사람이 신고당한 기록이 아니라
+  // 신고한 기록이라, 지우면 다른 사용자에 대한 모더레이션 근거가 같이 사라진다.
+  const ownReports = await db.collection('reports').where('reporterId', '==', uid).get();
+  ownReports.docs.forEach((d) => writer.update(d.ref, { reporterId: 'deleted' }));
+
+  // 장소 카운터도 되돌린다. 안 두면 갤러리에 없는 사진 수가 장소 화면에 영원히 남는다.
+  const perPlace = new Map<string, number>();
+  for (const d of tickets.docs) {
+    const placeId = d.data().placeId as string;
+    perPlace.set(placeId, (perPlace.get(placeId) ?? 0) + 1);
+  }
+  for (const [placeId, n] of perPlace) {
+    writer.update(db.doc(`places/${placeId}`), {
+      ticketCount: FieldValue.increment(-n),
+      photoCount: FieldValue.increment(-n),
+    });
+  }
+  await writer.close();
+
+  // 하위 컬렉션(savedPlaces)까지 같이 지운다.
+  await db.recursiveDelete(db.doc(`users/${uid}`));
+
+  // 사진 원본. storage.rules 가 tickets/{uid}/ 와 posts/{uid}/ 둘만 허용한다.
+  const bucket = getStorage().bucket();
+  await Promise.all([
+    bucket.deleteFiles({ prefix: `tickets/${uid}/` }),
+    bucket.deleteFiles({ prefix: `posts/${uid}/` }),
+  ]);
+
+  await getAuth().deleteUser(uid);
+  return { deletedDocs: refs.length + 1 };
 });

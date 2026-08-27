@@ -35,6 +35,13 @@ export const MAX_READINGS = 5;
 /** 장소에 radiusMeters 가 없을 때의 기본 반경. */
 export const DEFAULT_RADIUS_M = 50;
 
+/**
+ * 사용자당 하루 verifyLocation 호출 상한. 세션마다 문서가 하나 생기고 성공하면
+ * verifyCount 도 늘어서, 상한 없이 두면 반복 호출만으로 둘 다 무한히 부풀릴 수 있다.
+ * GPS 가 여러 번 튀는 실사용을 덮으면서도 스크립트 반복 호출은 막을 만큼 넉넉하게 잡는다.
+ */
+export const VERIFY_DAILY_LIMIT = 200;
+
 export type Tier = 'club10' | 'club20' | 'clubGo';
 
 export interface LatLng {
@@ -345,4 +352,33 @@ export function normalizePlace(input: PlaceInput): { placeId: string | undefined
     ...(description && { description }),
   };
   return { placeId, doc };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 금칙어 — Apple 심사 가이드라인 1.2 가 요구하는 서버 측 콘텐츠 필터
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 목록은 일부러 짧다. 길어질수록 오검출이 늘고, 오검출은 멀쩡한 글이 소리 없이 사라지는
+ * 일이라 미검출보다 나쁘다. "보지" · "씹" 처럼 평범한 용언에 그대로 들어 있는 낱말은
+ * 넣지 않는다 — 공백을 지우고 보기 때문에 "보지 못했다" 가 걸린다.
+ */
+export const BANNED_WORDS = [
+  '시발', '씨발', '시팔', '씨팔', 'ㅅㅂ', 'ㅄ', 'ㅂㅅ',
+  '병신', '븅신', '좆', '존나', '지랄', '개새끼', '개새기',
+  '미친놈', '미친년', '썅', '엠창', '느금마',
+  'fuck', 'shit', 'bitch', 'asshole',
+];
+
+/**
+ * 걸린 낱말을 돌려준다. 없으면 undefined.
+ *
+ * 공백·구두점을 지우고 소문자로 맞춘 뒤 본다 — "시 발", "s.h.i.t" 같은 회피를 막는다.
+ *
+ * ponytail: 단순 부분 문자열 검사다. 공백을 지우는 탓에 낱말 경계를 넘어 붙는 오검출이
+ * 남는다. 실제로 문제가 되면 그때 형태소 분석이나 외부 모더레이션 API 로 올린다.
+ */
+export function containsBanned(text: string): string | undefined {
+  const flat = text.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+  return BANNED_WORDS.find((w) => flat.includes(w));
 }
