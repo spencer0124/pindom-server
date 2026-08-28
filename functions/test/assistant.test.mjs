@@ -19,6 +19,7 @@ import {
   parseRoute,
   runToolLoop,
   samplePath,
+  orderStops,
   sanitizeHistory,
   toSuggestion,
   waypoints,
@@ -115,6 +116,34 @@ describe('sanitizeHistory', () => {
   it('배열이 아니거나 빈 내용이면 버린다', () => {
     assert.deepEqual(sanitizeHistory('nope'), []);
     assert.deepEqual(sanitizeHistory([{ role: 'user', content: '' }]), []);
+  });
+
+  it('앱이 쓰는 text 필드도 본문으로 읽는다', () => {
+    // content 만 읽던 동안에는 앱의 대화가 통째로 걸러져 매 턴이 첫 턴이 됐다.
+    const out = sanitizeHistory([
+      { role: 'user', text: '루미나 촬영지 알려줘' },
+      { role: 'assistant', text: '네 곳 있어요' },
+    ]);
+    assert.deepEqual(out, [
+      { role: 'user', content: '루미나 촬영지 알려줘' },
+      { role: 'assistant', content: '네 곳 있어요' },
+    ]);
+  });
+});
+
+describe('orderStops', () => {
+  it('출발지에서 가까운 곳부터 이어 간다', () => {
+    const seoul = { lat: 37.5, lng: 127.0 };
+    const stops = [
+      { name: '부산', at: { lat: 35.1, lng: 129.0 } },
+      { name: '인천', at: { lat: 37.45, lng: 126.37 } },
+      { name: '강릉', at: { lat: 37.88, lng: 128.83 } },
+    ];
+    assert.deepEqual(orderStops(seoul, stops).map((s) => s.name), ['인천', '강릉', '부산']);
+  });
+
+  it('빈 목록은 빈 목록이다', () => {
+    assert.deepEqual(orderStops({ lat: 37.5, lng: 127.0 }, []), []);
   });
 });
 

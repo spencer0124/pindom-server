@@ -35,6 +35,8 @@ import {
   DAILY_CALL_LIMIT,
   GEOCODE_TOOL,
   KAKAO_CATEGORIES,
+  ROUTE_TOOL,
+  SPOTS_TOOL,
   MAX_MESSAGE_CHARS,
   SEARCH_TOOL,
   SYSTEM_PROMPT,
@@ -43,6 +45,7 @@ import {
   type Suggestion,
   dayKeyKst,
   nextCallCount,
+  orderStops,
   parseRoute,
   runToolLoop,
   samplePath,
@@ -728,6 +731,118 @@ async function placeCoords(placeId: string): Promise<{ at: LatLng; name: string 
   };
 }
 
+/**
+ * 답변이 가리키는 촬영지. 모델은 이름과 거리를 읽고, 앱은 좌표로 지도에 핀을 찍는다.
+ * 같은 목록이 두 곳에 쓰이므로 도구 결과와 응답이 갈라지지 않는다.
+ */
+interface Spot {
+  placeId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  region?: string;
+  workTitle?: string;
+  distanceMeters?: number;
+}
+
+/** 도구 인자로 온 좌표. 둘 다 성해야 좌표다 — 하나만 오면 없는 것으로 친다. */
+function coordArg(args: Data, latKey = 'lat', lngKey = 'lng'): LatLng | undefined {
+  const lat = Number(args[latKey]);
+  const lng = Number(args[lngKey]);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined;
+}
+
+/**
+ * 등록된 촬영지. 모델이 "촬영지가 없다" 고 답하기 전에 반드시 거치는 자리다 —
+ * 카카오 검색(search_nearby)은 카페와 관광지를 알 뿐 우리 촬영지는 모른다.
+ *
+ * 아이돌 이름은 사용자가 말한 그대로 오므로 artists 를 훑어 id 로 바꾼다. 로스터가
+ * 작아서 전체 읽기로 충분하다 — places.search 가 앱에서 이미 같은 방식이다.
+ */
+async function findFilmingSpots(args: Data, near?: LatLng): Promise<{ result: Data; spots?: Spot[] }> {
+  const artist = typeof args.artist === 'string' ? args.artist.trim() : '';
+  let artistId = '';
+  if (artist) {
+    const roster = await db.collection('artists').get();
+    const hit = roster.docs.find((d) => {
+      const name = d.data().name as Data | undefined;
+      return (
+        String(name?.ko ?? '') === artist
+        || String(name?.en ?? '').toLowerCase() === artist.toLowerCase()
+      );
+    });
+    if (!hit) return { result: { note: `"${artist}" 는 등록된 아이돌이 아니다` } };
+    artistId = hit.id;
+  }
+
+  const query = artistId
+    ? db.collection('places').where('artistIds', 'array-contains', artistId)
+    : db.collection('places');
+  const snap = await query.get();
+
+  const origin = coordArg(args) ?? near;
+  const spots: Spot[] = snap.docs
+    .map((d) => {
+      const place = d.data();
+      const at = geo(place.location as GeoPoint);
+      return {
+        placeId: d.id,
+        name: String((place.name as Data | undefined)?.ko ?? '촬영지'),
+        region: String((place.region as Data | undefined)?.ko ?? ''),
+        workTitle: String((place.workTitle as Data | undefined)?.ko ?? ''),
+        lat: at.lat,
+        lng: at.lng,
+        ...(origin && { distanceMeters: Math.round(distanceMeters(origin, at)) }),
+      };
+    })
+    .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+
+  return spots.length === 0 ? { result: { note: '등록된 촬영지가 없다' } } : { result: { spots }, spots };
+}
+
+/**
+ * 들를 순서와 이동 시간. 순서는 우리가 잡는다 — 모델이 좌표를 눈으로 훑어 정하면
+ * 서울과 부산이 번갈아 나오는 동선이 나온다.
+ */
+async function planRoute(
+  args: Data,
+  near: LatLng | undefined,
+  key: string,
+): Promise<{ result: Data; route?: Route; spots?: Spot[] }> {
+  const placeIds = (Array.isArray(args.placeIds) ? args.placeIds : [])
+    .filter((v): v is string => typeof v === 'string')
+    .slice(0, 10);
+  if (placeIds.length === 0) return { result: { note: 'placeIds 가 없다' } };
+
+  const found = await Promise.all(placeIds.map(placeCoords));
+  const stops = found.map((s, i) => ({ ...s, placeId: placeIds[i] as string }));
+  const origin = coordArg(args, 'originLat', 'originLng') ?? near;
+  const ordered = orderStops(origin ?? (stops[0] as { at: LatLng }).at, stops);
+  const order = ordered.map((s) => s.name);
+  const spots: Spot[] = ordered.map((s) => ({ placeId: s.placeId, name: s.name, lat: s.at.lat, lng: s.at.lng }));
+
+  // 출발지가 없고 목적지도 하나뿐이면 그릴 구간이 없다. 이동 시간 없이 그것만 돌려준다.
+  const from = origin ?? (ordered[0] as { at: LatLng }).at;
+  const rest = origin ? ordered : ordered.slice(1);
+  if (rest.length === 0) {
+    return { result: { order, note: '출발지를 알려주면 이동 시간까지 계산할 수 있다' }, spots };
+  }
+
+  const last = rest[rest.length - 1] as { at: LatLng };
+  const drawn = await fetchRoute(from, last.at, rest.slice(0, -1).map((s) => s.at), key);
+  if (!drawn) return { result: { order, note: '경로를 찾지 못했다' }, spots };
+
+  return {
+    route: drawn,
+    spots,
+    result: {
+      order,
+      totalMinutes: Math.round(drawn.durationSeconds / 60),
+      totalKilometers: Math.round(drawn.distanceMeters / 100) / 10,
+    },
+  };
+}
+
 async function callOpenAI(messages: ChatMessage[], key: string): Promise<ChatMessage> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -735,7 +850,7 @@ async function callOpenAI(messages: ChatMessage[], key: string): Promise<ChatMes
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages,
-      tools: [SEARCH_TOOL, GEOCODE_TOOL],
+      tools: [SPOTS_TOOL, ROUTE_TOOL, SEARCH_TOOL, GEOCODE_TOOL],
       max_tokens: 600,
     }),
   });
@@ -769,9 +884,20 @@ export const askAssistant = onCall(
 
     let context = '';
     let route: Route | null = null;
+    // 답변이 가리키는 촬영지와, 그 순서가 동선인지. 앱은 이걸로 대화 안에 지도를 그린다.
+    let spots: Spot[] = [];
+    let ordered = false;
+
+    // 앱은 사용자가 고른 최애를 함께 보낸다. 이름을 미리 붙여 두면 "우리 애 촬영지" 처럼
+    // 이름 없이 물어도 find_filming_spots 의 artist 인자를 모델이 채울 수 있다.
+    if (typeof data.artistId === 'string' && data.artistId !== '') {
+      const artist = (await db.doc(`artists/${data.artistId}`).get()).data();
+      const name = (artist?.name as Data | undefined)?.ko;
+      if (typeof name === 'string') context = `사용자의 최애는 "${name}" 이다.`;
+    }
     if (typeof data.towardPlaceId === 'string' && data.towardPlaceId !== '') {
       const target = await placeCoords(data.towardPlaceId);
-      context = `사용자는 "${target.name}" (${target.at.lat}, ${target.at.lng}) 로 가는 중이다.`;
+      context += ` 사용자는 "${target.name}" (${target.at.lat}, ${target.at.lng}) 로 가는 중이다.`;
       if (near) {
         // 실제 도로 위에서 중간 지점을 잡는다. 직선으로 잡으면 바다나 산을 지나는 좌표가
         // 나오고, 그 주변을 검색하면 "가는 길에 들를 곳" 이 아닌 것이 추천된다.
@@ -786,7 +912,7 @@ export const askAssistant = onCall(
         context += ' 들를 곳을 물으면 중간 지점들과 목적지 주변을 각각 찾아본다.';
       }
     } else if (near) {
-      context = `사용자의 현재 위치는 (${near.lat}, ${near.lng}) 이다.`;
+      context += ` 사용자의 현재 위치는 (${near.lat}, ${near.lng}) 이다.`;
     }
 
     const messages: ChatMessage[] = [
@@ -802,6 +928,23 @@ export const askAssistant = onCall(
       messages,
       (msgs) => callOpenAI(msgs, OPENAI_API_KEY.value()),
       async (name, args) => {
+        if (name === 'find_filming_spots') {
+          const found = await findFilmingSpots(args, near);
+          if (found.spots) spots = found.spots;
+          return found.result;
+        }
+        if (name === 'plan_route') {
+          const planned = await planRoute(args, near, KAKAO_REST_API_KEY.value());
+          // 경로 좌표는 모델에게 보내지 않는다 — 600점짜리 배열이고 모델은 쓸 데가 없다.
+          // 앱이 지도에 선을 그릴 수 있게 응답에만 싣는다.
+          if (planned.route) route = planned.route;
+          // 순서가 정해진 뒤로는 이쪽이 앱이 찍을 핀이다 — 번호가 동선 순서가 된다.
+          if (planned.spots) {
+            spots = planned.spots;
+            ordered = true;
+          }
+          return planned.result;
+        }
         if (name === 'geocode_place') {
           const query = typeof args.query === 'string' ? args.query : '';
           return query ? await geocodePlace(query, KAKAO_REST_API_KEY.value()) : { note: '지명이 없다' };
@@ -812,7 +955,7 @@ export const askAssistant = onCall(
     );
 
     // 경로를 이미 받아왔으면 함께 돌려준다. 앱이 지도에 선을 그리려고 다시 부를 이유가 없다.
-    return { reply, suggestions, route };
+    return { reply, suggestions, route, spots, ordered };
   },
 );
 

@@ -111,15 +111,23 @@ export function dedupe(list: Suggestion[]): Suggestion[] {
   });
 }
 
-/** 클라이언트가 보낸 이전 대화를 자른다. role 은 두 가지만 통과시킨다. */
+/**
+ * 클라이언트가 보낸 이전 대화를 자른다. role 은 두 가지만 통과시킨다.
+ *
+ * 본문은 `content` 로도 `text` 로도 온다 — 앱의 AssistantMessage 는 `text` 를 쓴다.
+ * 한쪽만 읽으면 대화가 통째로 걸러져 매 턴이 첫 턴이 된다(맥락을 기억 못 하는 증상).
+ */
 export function sanitizeHistory(raw: unknown): Array<{ role: 'user' | 'assistant'; content: string }> {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
-    .map((m) => ({
-      role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-      content: typeof m.content === 'string' ? m.content.slice(0, MAX_MESSAGE_CHARS) : '',
-    }))
+    .map((m) => {
+      const body = typeof m.content === 'string' ? m.content : typeof m.text === 'string' ? m.text : '';
+      return {
+        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content: body.slice(0, MAX_MESSAGE_CHARS),
+      };
+    })
     .filter((m) => m.content !== '')
     .slice(-MAX_HISTORY);
 }
@@ -133,14 +141,63 @@ GPS 로 인증하면 사진 티켓을 받는 앱이다. 한국어로, 짧고 구
 - 티켓을 모으면 응모에 쓸 수 있고, 발행 수에 따라 등급이 오른다 (0–19 club10, 20–29 club20, 30+ clubGo).
 - 사진은 인증에 성공한 뒤에만 찍을 수 있고, 공개로 올리면 그 장소의 갤러리에 걸린다.
 
-주변 장소를 물으면 search_nearby 도구를 쓴다. 도구가 준 곳만 말하고 지어내지 않는다.
+도구를 쓰는 법:
+- 촬영지(인증하면 티켓이 나오는 곳)는 find_filming_spots 만이 안다. 어디를 가면 되는지,
+  어느 아이돌 촬영지가 있는지, 루트를 짜 달라는 말이 나오면 반드시 먼저 부른다.
+  이 도구를 부르지 않고 "촬영지가 없다" 고 답하지 않는다 — 아는 척이 된다.
+- 두 곳 이상을 도는 순서와 이동 시간은 plan_route 로 계산한다. find_filming_spots 가 준
+  placeId 만 넣는다.
+- 카페·맛집·관광지처럼 촬영지가 아닌 주변 장소는 search_nearby 를 쓴다.
+- 도구가 준 곳만 말하고 지어내지 않는다. 도구가 아무것도 주지 않으면 없다고 말한다.
 추천한 곳은 앱이 지도에 핀으로 보여주므로, 답변에서 주소나 좌표를 늘어놓지 말고
-왜 갈 만한지만 한 줄씩 붙인다. 도구가 아무것도 주지 않으면 없다고 말한다.
+왜 갈 만한지만 한 줄씩 붙인다.
 
-사용자 위치는 현재 위치(near)로 미리 와 있을 수도, 안 와 있을 수도 있다. 안 와 있는데
-사용자가 "강남역", "부산 해운대" 처럼 지명이나 주소를 텍스트로 말하면, 위치를 다시 묻지
-말고 geocode_place 로 그 지명을 좌표로 바꾼 뒤 곧바로 search_nearby 를 쓴다. 지명도 위치도
-전혀 없을 때만 위치를 물어본다.`;
+위치를 모른다고 대화를 멈추지 않는다. 이 순서를 지킨다:
+1. 사용자가 "강남역", "부산 해운대" 처럼 지명을 말했으면 geocode_place 로 좌표를 구해 쓴다.
+2. 지명도 현재 위치(near)도 없으면, 그래도 먼저 답한다 — 전체 촬영지로 루트를 짜 주거나
+   대표적인 곳을 알려준 뒤, 마지막에 한 줄로 "지금 계신 곳을 알려주시면 가까운 순으로
+   다시 짜드릴게요" 처럼 덧붙인다.
+위치만 되묻고 끝나는 답은 하지 않는다.`;
+
+export const SPOTS_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'find_filming_spots',
+    description:
+      'PINDOM 에 등록된 촬영지를 찾는다. GPS 인증으로 티켓이 나오는 곳은 여기 있는 것뿐이다. '
+      + '아이돌 이름이나 좌표로 좁힐 수 있고, 둘 다 없으면 전체를 준다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        artist: { type: 'string', description: '"루미나" 처럼 사용자가 말한 아이돌 이름. 없으면 비운다' },
+        lat: { type: 'number', description: '기준 위도. 주면 가까운 순으로 정렬한다' },
+        lng: { type: 'number', description: '기준 경도' },
+      },
+    },
+  },
+};
+
+export const ROUTE_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'plan_route',
+    description:
+      '촬영지 여러 곳을 도는 순서와 자동차 이동 시간을 계산한다. find_filming_spots 가 준 placeId 만 넣는다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        placeIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'find_filming_spots 가 준 placeId 들. 순서는 이 도구가 다시 잡는다',
+        },
+        originLat: { type: 'number', description: '출발지 위도. 모르면 비운다' },
+        originLng: { type: 'number', description: '출발지 경도' },
+      },
+      required: ['placeIds'],
+    },
+  },
+};
 
 export const GEOCODE_TOOL = {
   type: 'function' as const,
@@ -224,6 +281,28 @@ export function samplePath(path: LatLng[], n = 2): LatLng[] {
   const out: LatLng[] = [];
   for (let i = 1; i <= n; i += 1) {
     out.push(path[Math.round((path.length - 1) * (i / (n + 1)))] as LatLng);
+  }
+  return out;
+}
+
+/**
+ * 들를 순서. 출발지에서 가장 가까운 곳으로 가고, 거기서 다시 가장 가까운 곳으로 간다.
+ *
+ * ponytail: 탐욕법이다. 촬영지가 다섯 곳 규모라 최적 순회와 사실상 같은 답이 나온다.
+ * 수십 곳이 되고 순서가 눈에 띄게 나빠지면 2-opt 한 번이면 충분하다.
+ */
+export function orderStops<T extends { at: LatLng }>(origin: LatLng, stops: T[]): T[] {
+  const rest = [...stops];
+  const out: T[] = [];
+  let cursor = origin;
+  while (rest.length > 0) {
+    let best = 0;
+    for (let i = 1; i < rest.length; i += 1) {
+      if (distanceMeters(cursor, (rest[i] as T).at) < distanceMeters(cursor, (rest[best] as T).at)) best = i;
+    }
+    const [next] = rest.splice(best, 1) as [T];
+    out.push(next);
+    cursor = next.at;
   }
   return out;
 }
