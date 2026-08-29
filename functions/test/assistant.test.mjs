@@ -21,6 +21,7 @@ import {
   samplePath,
   orderStops,
   sanitizeHistory,
+  stripMarkdown,
   toSuggestion,
   waypoints,
 } from '../lib/assistant.js';
@@ -195,6 +196,14 @@ describe('decimate', () => {
     assert.equal(out.length, MAX_PATH_POINTS);
     assert.deepEqual(out[0], path[0]);
     assert.deepEqual(out.at(-1), path.at(-1));
+  });
+});
+
+describe('stripMarkdown', () => {
+  it('굵게·목록·제목 표시를 벗긴다', () => {
+    assert.equal(stripMarkdown('**N서울타워 전망대**는 좋다'), 'N서울타워 전망대는 좋다');
+    assert.equal(stripMarkdown('# 제목\n- 목록'), '제목\n목록');
+    assert.equal(stripMarkdown('평범한 문장'), '평범한 문장');
   });
 });
 

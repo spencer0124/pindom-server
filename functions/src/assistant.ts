@@ -6,7 +6,8 @@
 import { distanceMeters, type LatLng } from './logic';
 
 /** 사용자당 하루 호출 상한. 이 함수는 호출 한 번이 OpenAI 청구서 한 줄이다. */
-export const DAILY_CALL_LIMIT = 30;
+// ponytail: 빌드 테스트 기간 임시로 사실상 무제한. 정식 배포 전에 30으로 되돌린다.
+export const DAILY_CALL_LIMIT = 10_000;
 
 /** 모델에 넘기는 이전 대화 길이. 클라이언트가 보낸 것을 그대로 믿지 않는다. */
 export const MAX_HISTORY = 10;
@@ -134,6 +135,7 @@ export function sanitizeHistory(raw: unknown): Array<{ role: 'user' | 'assistant
 
 export const SYSTEM_PROMPT = `너는 PINDOM 앱의 도우미다. PINDOM 은 아이돌·드라마 촬영지를 직접 찾아가
 GPS 로 인증하면 사진 티켓을 받는 앱이다. 한국어로, 짧고 구체적으로 답한다.
+마크다운 문법(**굵게**, - 목록, # 제목 등)은 쓰지 않는다 — 앱이 그대로 화면에 찍어 별표가 보인다. 강조하고 싶은 말도 그냥 평범한 문장으로 쓴다.
 
 앱의 규칙:
 - 촬영지 반경 50m 안에서 인증해야 티켓이 나온다. 기기 위치 정확도가 65m 를 넘으면 인증되지 않는다.
@@ -145,8 +147,10 @@ GPS 로 인증하면 사진 티켓을 받는 앱이다. 한국어로, 짧고 구
 - 촬영지(인증하면 티켓이 나오는 곳)는 find_filming_spots 만이 안다. 어디를 가면 되는지,
   어느 아이돌 촬영지가 있는지, 루트를 짜 달라는 말이 나오면 반드시 먼저 부른다.
   이 도구를 부르지 않고 "촬영지가 없다" 고 답하지 않는다 — 아는 척이 된다.
-- 두 곳 이상을 도는 순서와 이동 시간은 plan_route 로 계산한다. find_filming_spots 가 준
-  placeId 만 넣는다.
+- "길찾아줘", "동선 짜줘", "루트 알려줘" 처럼 두 곳 이상을 도는 순서·이동 시간을 원하면
+  반드시 plan_route 를 부른다. find_filming_spots 가 준 placeId 만 넣는다.
+  길찾기는 앱이 지도 위에 직접 그려준다 — "네비게이션 앱을 이용하세요", "거리는 직접
+  확인하세요" 처럼 다른 앱에 떠넘기지 않는다.
 - 카페·맛집·관광지처럼 촬영지가 아닌 주변 장소는 search_nearby 를 쓴다.
 - 도구가 준 곳만 말하고 지어내지 않는다. 도구가 아무것도 주지 않으면 없다고 말한다.
 추천한 곳은 앱이 지도에 핀으로 보여주므로, 답변에서 주소나 좌표를 늘어놓지 말고
@@ -314,6 +318,17 @@ export interface ChatMessage {
   tool_call_id?: string;
 }
 
+/**
+ * 프롬프트로 마크다운을 쓰지 말라고 해도 모델이 가끔 어긴다. 앱은 마크다운을 렌더링하지
+ * 않으니, 별표·굵게 표시가 별 두 개 그대로 화면에 찍힌다 — 프롬프트를 못 믿으니 여기서 벗긴다.
+ */
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*]\s+/gm, '');
+}
+
 export interface ToolLoopResult {
   reply: string;
   suggestions: Suggestion[];
@@ -337,7 +352,8 @@ export async function runToolLoop(
     const calls = answer.tool_calls ?? [];
 
     if (calls.length === 0 || round === maxRounds) {
-      return { reply: typeof answer.content === 'string' ? answer.content : '', suggestions: dedupe(suggestions).slice(0, 12) };
+      const text = typeof answer.content === 'string' ? answer.content : '';
+      return { reply: stripMarkdown(text), suggestions: dedupe(suggestions).slice(0, 12) };
     }
 
     messages.push(answer);
