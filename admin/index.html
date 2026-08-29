@@ -8,180 +8,347 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #0d0d0f; --panel: #17171b; --line: #2a2a31;
-    --text: #ececf0; --dim: #8b8b96; --accent: #58cf04; --bad: #ff5757;
+    --bg: #0d0d0f; --panel: #17171b; --raise: #1e1e24; --line: #2a2a31;
+    --text: #ececf0; --dim: #8b8b96; --accent: #58cf04; --bad: #ff5757; --warn: #f5a623;
+    --side: 208px;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 32px 20px 64px;
-    background: var(--bg); color: var(--text);
+    margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
   }
-  main { max-width: 880px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  h2 { font-size: 15px; margin: 40px 0 12px; color: var(--dim); font-weight: 600; }
-  section:first-of-type h2 { margin-top: 32px; }
-  .sub { color: var(--dim); margin: 0 0 24px; }
   button {
-    font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
-    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font: inherit; padding: 7px 13px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--raise); color: var(--text);
   }
   button.primary { background: var(--accent); border-color: var(--accent); color: #0d0d0f; font-weight: 700; }
-  button.danger { color: var(--bad); border-color: transparent; background: transparent; padding: 8px 8px; }
+  button.danger { color: var(--bad); border-color: transparent; background: transparent; padding: 7px 9px; }
   button.danger:hover { border-color: var(--bad); }
+  button.quiet { background: transparent; }
   button:disabled { opacity: .5; cursor: default; }
+  a { color: var(--accent); }
+
+  /* ── 로그인 게이트 ─────────────────────────────────────────────────────── */
+  #gate { min-height: 100vh; display: grid; place-content: center; gap: 14px; text-align: center; padding: 20px; }
+  #gate h1 { font-size: 19px; margin: 0; letter-spacing: .04em; }
+  #gate p { color: var(--dim); margin: 0; max-width: 34ch; }
+
+  /* ── 골격 ─────────────────────────────────────────────────────────────── */
+  #app { display: grid; grid-template-columns: var(--side) 1fr; min-height: 100vh; }
+  .side {
+    border-right: 1px solid var(--line); background: var(--panel);
+    display: flex; flex-direction: column; padding: 18px 12px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { font-weight: 700; letter-spacing: .08em; font-size: 13px; padding: 0 10px 16px; }
+  .brand span { color: var(--accent); }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav a {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 8px; color: var(--dim); text-decoration: none;
+  }
+  nav a:hover { background: var(--raise); color: var(--text); }
+  nav a[aria-current="page"] { background: var(--raise); color: var(--text); font-weight: 600; }
+  nav a b { font-weight: 600; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .side footer { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim); }
+  .side footer div { overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px; }
+
+  main { padding: 26px 28px 72px; max-width: 1080px; }
+  header.page { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 22px; }
+  header.page h1 { font-size: 19px; margin: 0 0 3px; }
+  header.page p { margin: 0; color: var(--dim); }
+  header.page .grow { flex: 1; }
+
+  .view[hidden] { display: none; }
+
+  /* ── 개요 ─────────────────────────────────────────────────────────────── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; }
+  .card { display: block; text-decoration: none; color: inherit; }
+  .card .label { display: block; color: var(--dim); font-size: 12px; }
+  .card .value { display: block; margin-top: 6px; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .value small { font-size: 12px; font-weight: 500; color: var(--dim); margin-left: 6px; }
+  h2 { font-size: 13px; margin: 32px 0 10px; color: var(--dim); font-weight: 600; }
+  ul.checks { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  ul.checks li { display: flex; gap: 10px; align-items: center; padding: 11px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  ul.checks li:last-child { border-bottom: 0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.ok { background: var(--accent); } .dot.warn { background: var(--warn); }
+  ul.checks li .grow { flex: 1; }
+  ul.checks li span.note { color: var(--dim); font-size: 12px; }
+
+  /* ── 표 ───────────────────────────────────────────────────────────────── */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .toolbar input {
+    flex: 0 1 260px; padding: 7px 11px; font: inherit; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .count { color: var(--dim); font-size: 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .tablewrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 600; font-size: 12px; }
-  td.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); }
-  tr.archived td { opacity: .45; }
-  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; }
-  form { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
-  .row { display: flex; gap: 12px; flex-wrap: wrap; }
-  label { display: block; flex: 1 1 180px; margin-bottom: 12px; font-size: 12px; color: var(--dim); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--raise); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; background: var(--raise); }
+  td.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); font-size: 12px; }
+  td.act { text-align: right; white-space: nowrap; }
+  tr.archived td:not(.act) { opacity: .45; }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+  td.empty { color: var(--dim); text-align: center; padding: 28px 14px; }
+
+  /* ── 서랍 ─────────────────────────────────────────────────────────────── */
+  #scrim { position: fixed; inset: 0; background: #000a; z-index: 10; }
+  #drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); z-index: 11;
+    background: var(--panel); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column;
+  }
+  #drawer > h3 {
+    margin: 0; padding: 18px 20px; border-bottom: 1px solid var(--line);
+    font-size: 15px; display: flex; align-items: center; gap: 12px;
+  }
+  #drawer > h3 .grow { flex: 1; }
+  .drawerbody { padding: 18px 20px; overflow-y: auto; flex: 1; }
+  .drawerfoot { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+  .drawerfoot .grow { flex: 1; }
+  form .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  label { display: block; flex: 1 1 190px; margin-bottom: 13px; font-size: 12px; color: var(--dim); }
   label > input, label > select {
     display: block; width: 100%; margin-top: 5px; padding: 8px 10px;
-    font: inherit; color: var(--text); background: #0d0d0f;
+    font: inherit; color: var(--text); background: var(--bg);
     border: 1px solid var(--line); border-radius: 8px;
   }
+  label > input:focus, label > select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
   label.check { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   label.check input { margin: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
   .chips label {
     flex: 0 0 auto; display: flex; align-items: center; gap: 5px; margin: 0;
-    padding: 5px 9px; background: #0d0d0f; border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 9px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; color: var(--text);
   }
   .chips input { margin: 0; }
-  .msg { margin-top: 12px; min-height: 20px; }
-  .msg.bad { color: var(--bad); }
-  .msg.good { color: var(--accent); }
-  .hidden { display: none; }
+  .msg { min-height: 18px; font-size: 12px; }
+  .msg.bad { color: var(--bad); } .msg.good { color: var(--accent); }
+
+  /* ── 토스트 ───────────────────────────────────────────────────────────── */
+  #toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: var(--raise); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 16px; z-index: 20; max-width: 80vw;
+  }
+  #toast.bad { border-color: var(--bad); color: var(--bad); }
+  #toast.good { border-color: var(--accent); }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px; overflow-x: auto; }
+    .side .brand { padding: 0 8px 0 4px; }
+    nav { flex-direction: row; }
+    nav a b { display: none; }
+    .side footer { margin: 0 0 0 auto; padding: 0; border: 0; }
+    .side footer div { display: none; }
+    main { padding: 18px 14px 60px; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <h1>PINDOM 관리</h1>
-  <p class="sub">아티스트·게시판·촬영지를 추가하고 고친다. 촬영지는 여기서 지울 수 없다 — 티켓이 id 로 매달려 있어서다. 아티스트·게시판은 게시글·촬영지가 안 딸려 있으면 지울 수 있다.</p>
 
-  <div id="gate">
-    <button id="signIn" class="primary">Google 로 로그인</button>
-    <p class="msg" id="gateMsg"></p>
-  </div>
+<div id="gate">
+  <h1>PINDOM <span style="color:var(--accent)">관리</span></h1>
+  <p id="gateMsg">관리자 계정으로 로그인한다.</p>
+  <div><button id="signIn" class="primary">Google 로 로그인</button></div>
+</div>
 
-  <div id="app" class="hidden">
-    <p class="sub"><span id="who"></span> · <button id="signOut">로그아웃</button></p>
+<div id="app" hidden>
+  <aside class="side">
+    <div class="brand">PINDOM <span>관리</span></div>
+    <nav>
+      <a href="#overview" data-view="overview">개요</a>
+      <a href="#artists" data-view="artists">아티스트 <b id="navArtists">–</b></a>
+      <a href="#boards" data-view="boards">게시판 <b id="navBoards">–</b></a>
+      <a href="#places" data-view="places">촬영지 <b id="navPlaces">–</b></a>
+    </nav>
+    <footer>
+      <div id="who"></div>
+      <button id="signOut" class="quiet">로그아웃</button>
+    </footer>
+  </aside>
 
-    <section>
-      <h2>아티스트</h2>
-      <table>
-        <thead><tr><th>id</th><th>이름</th><th></th></tr></thead>
-        <tbody id="artistRows"></tbody>
-      </table>
-      <h2 id="artistFormTitle">아티스트 추가</h2>
-      <form id="artistForm">
-        <div class="row">
-          <label>id (수정 시 고정)<input id="artistId" placeholder="artist-lumina" required></label>
-          <label>이니셜 (선택)<input id="artistInitial" placeholder="LM" maxlength="4"></label>
-          <label>강조색 (선택)<input id="artistAccentColor" placeholder="#58CF04"></label>
+  <main>
+    <p class="msg bad" id="loadErr" hidden></p>
+
+    <!-- ── 개요 ────────────────────────────────────────────────────────── -->
+    <section class="view" id="view-overview">
+      <header class="page">
+        <div class="grow">
+          <h1>개요</h1>
+          <p>등록된 것들의 현재 상태. 숫자를 누르면 그 목록으로 간다.</p>
         </div>
-        <div class="row">
-          <label>이름 (한국어)<input id="artistNameKo" required></label>
-          <label>이름 (영어)<input id="artistNameEn" required></label>
-        </div>
-        <div class="row">
-          <label>프로필 이미지 URL (선택)<input id="artistImageUrl" placeholder="https://..."></label>
-        </div>
-        <div class="row">
-          <button class="primary" id="artistSave" type="submit">저장</button>
-          <button type="button" id="artistReset">새로 작성</button>
-        </div>
-        <p class="msg" id="artistMsg"></p>
-      </form>
+        <button id="refresh" class="quiet">새로고침</button>
+      </header>
+      <div class="cards" id="cards"></div>
+      <h2>점검</h2>
+      <ul class="checks" id="checks"></ul>
     </section>
 
-    <section>
-      <h2>게시판</h2>
-      <table>
-        <thead><tr><th>id</th><th>이름</th><th>종류</th><th>순서</th><th>상태</th><th></th></tr></thead>
-        <tbody id="boardRows"></tbody>
-      </table>
-
-      <h2 id="boardFormTitle">게시판 추가</h2>
-      <form id="boardForm">
-        <div class="row">
-          <label>종류
-            <select id="kind">
-              <option value="artist">아이돌 게시판</option>
-              <option value="free">자유게시판</option>
-            </select>
-          </label>
-          <label id="boardArtistField">아이돌
-            <select id="boardArtistId"></select>
-          </label>
-          <label>순서 (작을수록 위)
-            <input id="order" type="number" step="10" value="0">
-          </label>
+    <!-- ── 아티스트 ────────────────────────────────────────────────────── -->
+    <section class="view" id="view-artists" hidden>
+      <header class="page">
+        <div class="grow">
+          <h1>아티스트</h1>
+          <p>앱의 최애 목록. 게시글·촬영지가 안 딸려 있으면 지울 수 있다.</p>
         </div>
-        <div class="row">
-          <label>이름 (한국어)<input id="nameKo" required></label>
-          <label>이름 (영어)<input id="nameEn" required></label>
-        </div>
-        <div class="row">
-          <label>설명 (한국어, 선택)<input id="descKo"></label>
-          <label>설명 (영어, 선택)<input id="descEn"></label>
-          <label>강조색 (선택)<input id="accentColor" placeholder="#58CF04"></label>
-        </div>
-        <div class="row">
-          <label class="check"><input id="archived" type="checkbox"> 목록에서 내림 (보관)</label>
-        </div>
-        <div class="row">
-          <button class="primary" id="save" type="submit">저장</button>
-          <button type="button" id="reset">새로 작성</button>
-        </div>
-        <p class="msg" id="msg"></p>
-      </form>
+        <button class="primary" data-new="artist">아티스트 추가</button>
+      </header>
+      <div class="toolbar">
+        <input id="artistSearch" placeholder="이름이나 id 로 거르기" autocomplete="off">
+        <span class="count" id="artistCount"></span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>이름</th><th>id</th><th>촬영지</th><th></th></tr></thead>
+          <tbody id="artistRows"></tbody>
+        </table>
+      </div>
     </section>
 
-    <section>
-      <h2>촬영지 (티켓 발급 장소)</h2>
-      <table>
-        <thead><tr><th>id</th><th>이름</th><th>반경</th><th>연결 아티스트</th><th></th></tr></thead>
-        <tbody id="placeRows"></tbody>
-      </table>
-
-      <h2 id="placeFormTitle">촬영지 추가</h2>
-      <form id="placeForm">
-        <div class="row">
-          <label>이름 (한국어)<input id="placeNameKo" required></label>
-          <label>이름 (영어)<input id="placeNameEn" required></label>
+    <!-- ── 게시판 ──────────────────────────────────────────────────────── -->
+    <section class="view" id="view-boards" hidden>
+      <header class="page">
+        <div class="grow">
+          <h1>게시판</h1>
+          <p>커뮤니티 탭의 게시판. 자유게시판은 하나뿐이고 보관할 수 없다.</p>
         </div>
-        <div class="row">
-          <label>위도<input id="placeLat" type="number" step="0.000001" required></label>
-          <label>경도<input id="placeLng" type="number" step="0.000001" required></label>
-          <label>인증 반경 (m)<input id="placeRadius" type="number" step="1" value="50" required></label>
-        </div>
-        <div class="row">
-          <label>주소 (선택)<input id="placeAddress"></label>
-          <label>커버 이미지 URL (선택)<input id="placeCoverImageUrl" placeholder="https://..."></label>
-        </div>
-        <div class="row">
-          <label>설명 (한국어, 선택)<input id="placeDescKo"></label>
-          <label>설명 (영어, 선택)<input id="placeDescEn"></label>
-        </div>
-        <div class="row">
-          <label style="flex-basis: 100%">연결 아티스트 (선택)
-            <div class="chips" id="placeArtistChips"></div>
-          </label>
-        </div>
-        <div class="row">
-          <button class="primary" id="placeSave" type="submit">저장</button>
-          <button type="button" id="placeReset">새로 작성</button>
-        </div>
-        <p class="msg" id="placeMsg"></p>
-      </form>
+        <button class="primary" data-new="board">게시판 추가</button>
+      </header>
+      <div class="toolbar">
+        <input id="boardSearch" placeholder="이름이나 id 로 거르기" autocomplete="off">
+        <span class="count" id="boardCount"></span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>이름</th><th>id</th><th>종류</th><th>순서</th><th>상태</th><th></th></tr></thead>
+          <tbody id="boardRows"></tbody>
+        </table>
+      </div>
     </section>
-  </div>
-</main>
+
+    <!-- ── 촬영지 ──────────────────────────────────────────────────────── -->
+    <section class="view" id="view-places" hidden>
+      <header class="page">
+        <div class="grow">
+          <h1>촬영지</h1>
+          <p>GPS 인증으로 티켓이 나오는 곳. 여기서는 지울 수 없다 — 티켓이 id 로 매달려 있다.</p>
+        </div>
+        <button class="primary" data-new="place">촬영지 추가</button>
+      </header>
+      <div class="toolbar">
+        <input id="placeSearch" placeholder="이름이나 id 로 거르기" autocomplete="off">
+        <span class="count" id="placeCount"></span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>이름</th><th>id</th><th>좌표</th><th>반경</th><th>연결 아티스트</th><th></th></tr></thead>
+          <tbody id="placeRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ── 서랍: 세 폼이 같은 자리를 쓴다 ──────────────────────────────────── -->
+<div id="scrim" hidden></div>
+<div id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <h3><span class="grow" id="drawerTitle"></span><button type="button" id="drawerClose" class="quiet">닫기</button></h3>
+
+  <form id="artistForm" class="pane" hidden>
+    <div class="drawerbody">
+      <div class="row">
+        <label>id (수정 시 고정)<input id="artistId" placeholder="artist-lumina" required></label>
+        <label>이니셜 (선택)<input id="artistInitial" placeholder="LM" maxlength="4"></label>
+      </div>
+      <div class="row">
+        <label>이름 (한국어)<input id="artistNameKo" required></label>
+        <label>이름 (영어)<input id="artistNameEn" required></label>
+      </div>
+      <div class="row">
+        <label>강조색 (선택)<input id="artistAccentColor" placeholder="#58CF04"></label>
+        <label>프로필 이미지 URL (선택)<input id="artistImageUrl" placeholder="https://..."></label>
+      </div>
+    </div>
+    <div class="drawerfoot">
+      <p class="msg grow" id="artistMsg"></p>
+      <button class="primary" id="artistSave" type="submit">저장</button>
+    </div>
+  </form>
+
+  <form id="boardForm" class="pane" hidden>
+    <div class="drawerbody">
+      <div class="row">
+        <label>종류
+          <select id="kind">
+            <option value="artist">아이돌 게시판</option>
+            <option value="free">자유게시판</option>
+          </select>
+        </label>
+        <label id="boardArtistField">아이돌<select id="boardArtistId"></select></label>
+        <label>순서 (작을수록 위)<input id="order" type="number" step="10" value="0"></label>
+      </div>
+      <div class="row">
+        <label>이름 (한국어)<input id="nameKo" required></label>
+        <label>이름 (영어)<input id="nameEn" required></label>
+      </div>
+      <div class="row">
+        <label>설명 (한국어, 선택)<input id="descKo"></label>
+        <label>설명 (영어, 선택)<input id="descEn"></label>
+      </div>
+      <div class="row">
+        <label>강조색 (선택)<input id="accentColor" placeholder="#58CF04"></label>
+      </div>
+      <div class="row">
+        <label class="check"><input id="archived" type="checkbox"> 목록에서 내림 (보관)</label>
+      </div>
+    </div>
+    <div class="drawerfoot">
+      <p class="msg grow" id="msg"></p>
+      <button class="primary" id="save" type="submit">저장</button>
+    </div>
+  </form>
+
+  <form id="placeForm" class="pane" hidden>
+    <div class="drawerbody">
+      <div class="row">
+        <label>이름 (한국어)<input id="placeNameKo" required></label>
+        <label>이름 (영어)<input id="placeNameEn" required></label>
+      </div>
+      <div class="row">
+        <label>위도<input id="placeLat" type="number" step="0.000001" required></label>
+        <label>경도<input id="placeLng" type="number" step="0.000001" required></label>
+        <label>인증 반경 (m)<input id="placeRadius" type="number" step="1" value="50" required></label>
+      </div>
+      <div class="row">
+        <label>주소 (선택)<input id="placeAddress"></label>
+        <label>커버 이미지 URL (선택)<input id="placeCoverImageUrl" placeholder="https://..."></label>
+      </div>
+      <div class="row">
+        <label>설명 (한국어, 선택)<input id="placeDescKo"></label>
+        <label>설명 (영어, 선택)<input id="placeDescEn"></label>
+      </div>
+      <div class="row">
+        <label style="flex-basis:100%">연결 아티스트 (선택)<div class="chips" id="placeArtistChips"></div></label>
+      </div>
+    </div>
+    <div class="drawerfoot">
+      <p class="msg grow" id="placeMsg"></p>
+      <button class="primary" id="placeSave" type="submit">저장</button>
+    </div>
+  </form>
+</div>
+
+<div id="toast" hidden></div>
 
 <script type="module">
 // Firebase Hosting 이 /__/firebase/init.json 으로 이 프로젝트의 웹 설정을 내려준다.
@@ -204,6 +371,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+const FREE_BOARD_ID = 'free';
 
 const app = initializeApp(await (await fetch('/__/firebase/init.json')).json());
 const auth = getAuth(app);
@@ -227,6 +395,18 @@ let artists = [];
 let boards = [];
 let places = [];
 
+// ── 토스트 ────────────────────────────────────────────────────────────────────
+
+let toastTimer;
+function toast(text, kind = '') {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = kind;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
 // ── 로그인 ────────────────────────────────────────────────────────────────────
 
 $('signIn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider())
@@ -235,8 +415,8 @@ $('signOut').onclick = () => signOut(auth);
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
-    $('gate').classList.remove('hidden');
-    $('app').classList.add('hidden');
+    $('gate').hidden = false;
+    $('app').hidden = true;
     return;
   }
   // 강제 갱신. grant-admin 을 방금 돌렸다면 캐시된 토큰에는 클레임이 없다.
@@ -248,10 +428,27 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   $('who').textContent = user.email;
-  $('gate').classList.add('hidden');
-  $('app').classList.remove('hidden');
+  $('gate').hidden = true;
+  $('app').hidden = false;
   await load();
 });
+
+// ── 화면 전환 ─────────────────────────────────────────────────────────────────
+
+const VIEWS = ['overview', 'artists', 'boards', 'places'];
+
+function showView(name) {
+  const view = VIEWS.includes(name) ? name : 'overview';
+  for (const v of VIEWS) $(`view-${v}`).hidden = v !== view;
+  for (const link of document.querySelectorAll('nav a')) {
+    if (link.dataset.view === view) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+}
+addEventListener('hashchange', () => showView(location.hash.slice(1)));
+showView(location.hash.slice(1));
+
+$('refresh').onclick = () => load();
 
 // ── 목록 ──────────────────────────────────────────────────────────────────────
 
@@ -265,55 +462,118 @@ async function load() {
     artists = artistSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     boards = boardSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     places = placeSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    $('loadErr').hidden = true;
   } catch (err) {
     // 목록이 그냥 비어 보이면 "데이터가 원래 없나 보다"로 착각한다.
     // 읽기 자체가 실패한 경우와 구분해서 보여준다.
-    $('who').insertAdjacentHTML('afterend',
-      `<p class="msg bad">목록을 불러오지 못했다: ${esc(err.message)}</p>`);
+    $('loadErr').textContent = `목록을 불러오지 못했다: ${err.message}`;
+    $('loadErr').hidden = false;
     return;
   }
 
+  $('navArtists').textContent = artists.length;
+  $('navBoards').textContent = boards.length;
+  $('navPlaces').textContent = places.length;
+
+  renderOverview();
   renderArtists();
   renderBoards();
   renderPlaces();
+  fillArtistPickers();
 }
 
-const emptyRow = (cols, text) => `<tr><td colspan="${cols}" style="color:var(--dim)">${text}</td></tr>`;
+const emptyRow = (cols, text) => `<tr><td class="empty" colspan="${cols}">${text}</td></tr>`;
+const swatch = (color) => (HEX_COLOR_RE.test(color ?? '') ? `<span class="swatch" style="background:${color}"></span>` : '');
+const artistName = (id) => artists.find((a) => a.id === id)?.name?.ko ?? id;
+const placesOf = (artistId) => places.filter((p) => (p.artistIds ?? []).includes(artistId)).length;
+
+// ── 개요 ──────────────────────────────────────────────────────────────────────
+
+function renderOverview() {
+  const archived = boards.filter((b) => b.archived).length;
+  const orphanPlaces = places.filter((p) => (p.artistIds ?? []).length === 0);
+  const boardless = artists.filter((a) => !boards.some((b) => b.kind === 'artist' && b.id === a.id));
+  const hasFree = boards.some((b) => b.id === FREE_BOARD_ID);
+
+  $('cards').innerHTML = [
+    ['#artists', '아티스트', artists.length, ''],
+    ['#boards', '게시판', boards.length, archived ? `보관 ${archived}` : ''],
+    ['#places', '촬영지', places.length, orphanPlaces.length ? `미연결 ${orphanPlaces.length}` : ''],
+    ['#places', '평균 인증 반경', places.length
+      ? `${Math.round(places.reduce((sum, p) => sum + Number(p.radiusMeters ?? 0), 0) / places.length)}m`
+      : '–', ''],
+  ].map(([href, label, value, note]) => `
+    <a class="card" href="${href}">
+      <span class="label">${label}</span>
+      <span class="value">${esc(String(value))}${note ? `<small>${esc(note)}</small>` : ''}</span>
+    </a>`).join('');
+
+  // 앱에서 눈에 띄기 전에 여기서 잡히는 것들. 통과한 항목도 남겨 둔다 —
+  // 목록이 비면 "점검을 안 한 것"인지 "문제가 없는 것"인지 구분이 안 된다.
+  const checks = [
+    [hasFree, '자유게시판', hasFree ? '있다' : `없다 — 커뮤니티 탭의 기본 게시판이다. id 는 ${FREE_BOARD_ID} 여야 한다`],
+    [orphanPlaces.length === 0, '아티스트가 연결되지 않은 촬영지',
+      orphanPlaces.length === 0 ? '없다' : `${orphanPlaces.length}곳 — ${orphanPlaces.slice(0, 3).map((p) => p.name?.ko ?? p.id).join(', ')}${orphanPlaces.length > 3 ? ' 외' : ''}. 최애로 걸러지지 않는다`],
+    [boardless.length === 0, '게시판이 없는 아티스트',
+      boardless.length === 0 ? '없다' : `${boardless.length}명 — ${boardless.slice(0, 3).map((a) => a.name?.ko ?? a.id).join(', ')}${boardless.length > 3 ? ' 외' : ''}`],
+    [places.length > 0, '촬영지', places.length > 0 ? `${places.length}곳` : '없다 — 인증할 곳이 없으면 티켓이 나오지 않는다'],
+  ];
+  $('checks').innerHTML = checks.map(([ok, label, note]) => `
+    <li>
+      <span class="dot ${ok ? 'ok' : 'warn'}"></span>
+      <span class="grow">${esc(label)}</span>
+      <span class="note">${esc(note)}</span>
+    </li>`).join('');
+}
+
+// ── 표 ────────────────────────────────────────────────────────────────────────
+
+/** 검색어. 이름(한/영)과 id 만 본다 — 표에 보이는 것으로만 걸러야 결과가 납득된다. */
+const matches = (row, term) => !term || [row.id, row.name?.ko, row.name?.en]
+  .some((v) => String(v ?? '').toLowerCase().includes(term));
 
 function renderArtists() {
-  $('artistRows').innerHTML = artists.length ? artists.map((a) => `
+  const term = $('artistSearch').value.trim().toLowerCase();
+  const rows = artists.filter((a) => matches(a, term));
+  $('artistCount').textContent = `${rows.length} / ${artists.length}`;
+  $('artistRows').innerHTML = rows.length ? rows.map((a) => `
     <tr>
+      <td>${swatch(a.accentColor)}${esc(a.name?.ko ?? '')} <span class="tag">${esc(a.name?.en ?? '')}</span></td>
       <td class="id">${esc(a.id)}</td>
-      <td>${HEX_COLOR_RE.test(a.accentColor ?? '') ? `<span class="swatch" style="background:${a.accentColor}"></span> ` : ''}${esc(a.name?.ko ?? '')}</td>
-      <td><button type="button" data-edit="${esc(a.id)}">수정</button> <button type="button" class="danger" data-delete="${esc(a.id)}">삭제</button></td>
-    </tr>`).join('') : emptyRow(3, '아직 등록된 아티스트가 없다. 아래에서 추가하면 여기 뜬다.');
+      <td>${placesOf(a.id)}곳</td>
+      <td class="act">
+        <button type="button" data-edit="${esc(a.id)}">수정</button>
+        <button type="button" class="danger" data-delete="${esc(a.id)}">삭제</button>
+      </td>
+    </tr>`).join('') : emptyRow(4, artists.length ? '검색과 맞는 아티스트가 없다.' : '아직 등록된 아티스트가 없다.');
+
   for (const btn of $('artistRows').querySelectorAll('[data-edit]')) {
-    btn.onclick = () => editArtist(artists.find((a) => a.id === btn.dataset.edit));
+    btn.onclick = () => openArtist(artists.find((a) => a.id === btn.dataset.edit));
   }
   for (const btn of $('artistRows').querySelectorAll('[data-delete]')) {
     btn.onclick = () => onDeleteArtist(btn.dataset.delete, btn);
   }
-
-  // 게시판 폼의 아티스트 선택, 촬영지 폼의 연결 아티스트 체크박스 — 둘 다 여기서만 채운다.
-  $('boardArtistId').innerHTML = artists
-    .map((a) => `<option value="${esc(a.id)}">${esc(a.name?.ko ?? a.id)}</option>`)
-    .join('');
-  $('placeArtistChips').innerHTML = artists.map((a) => `
-    <label><input type="checkbox" value="${esc(a.id)}"> ${esc(a.name?.ko ?? a.id)}</label>`).join('');
 }
 
 function renderBoards() {
-  $('boardRows').innerHTML = boards.length ? boards.map((b) => `
+  const term = $('boardSearch').value.trim().toLowerCase();
+  const rows = boards.filter((b) => matches(b, term));
+  $('boardCount').textContent = `${rows.length} / ${boards.length}`;
+  $('boardRows').innerHTML = rows.length ? rows.map((b) => `
     <tr class="${b.archived ? 'archived' : ''}">
+      <td>${swatch(b.accentColor)}${esc(b.name?.ko ?? '')}</td>
       <td class="id">${esc(b.id)}</td>
-      <td>${HEX_COLOR_RE.test(b.accentColor ?? '') ? `<span class="swatch" style="background:${b.accentColor}"></span> ` : ''}${esc(b.name?.ko ?? '')}</td>
       <td>${b.kind === 'free' ? '자유' : '아이돌'}</td>
       <td>${Number(b.order ?? 0)}</td>
-      <td>${b.archived ? '보관' : '노출'}</td>
-      <td><button type="button" data-edit="${esc(b.id)}">수정</button> <button type="button" class="danger" data-delete="${esc(b.id)}">삭제</button></td>
-    </tr>`).join('') : emptyRow(6, '아직 등록된 게시판이 없다. 아래에서 추가하면 여기 뜬다.');
+      <td>${b.archived ? '<span class="tag">보관</span>' : '노출'}</td>
+      <td class="act">
+        <button type="button" data-edit="${esc(b.id)}">수정</button>
+        <button type="button" class="danger" data-delete="${esc(b.id)}">삭제</button>
+      </td>
+    </tr>`).join('') : emptyRow(6, boards.length ? '검색과 맞는 게시판이 없다.' : '아직 등록된 게시판이 없다.');
+
   for (const btn of $('boardRows').querySelectorAll('[data-edit]')) {
-    btn.onclick = () => editBoard(boards.find((b) => b.id === btn.dataset.edit));
+    btn.onclick = () => openBoard(boards.find((b) => b.id === btn.dataset.edit));
   }
   for (const btn of $('boardRows').querySelectorAll('[data-delete]')) {
     btn.onclick = () => onDeleteBoard(btn.dataset.delete, btn);
@@ -321,17 +581,61 @@ function renderBoards() {
 }
 
 function renderPlaces() {
-  $('placeRows').innerHTML = places.length ? places.map((p) => `
+  const term = $('placeSearch').value.trim().toLowerCase();
+  const rows = places.filter((p) => matches(p, term));
+  $('placeCount').textContent = `${rows.length} / ${places.length}`;
+  $('placeRows').innerHTML = rows.length ? rows.map((p) => `
     <tr>
-      <td class="id">${esc(p.id)}</td>
       <td>${esc(p.name?.ko ?? '')}</td>
+      <td class="id">${esc(p.id)}</td>
+      <td class="id">${Number(p.location?.latitude ?? 0).toFixed(4)}, ${Number(p.location?.longitude ?? 0).toFixed(4)}</td>
       <td>${Number(p.radiusMeters ?? 0)}m</td>
-      <td>${(p.artistIds ?? []).map((id) => esc(artists.find((a) => a.id === id)?.name?.ko ?? id)).join(', ')}</td>
-      <td><button type="button" data-edit="${esc(p.id)}">수정</button></td>
-    </tr>`).join('') : emptyRow(5, '아직 등록된 촬영지가 없다. 아래에서 추가하면 여기 뜬다.');
+      <td>${(p.artistIds ?? []).length
+        ? (p.artistIds ?? []).map((id) => esc(artistName(id))).join(', ')
+        : '<span class="tag">미연결</span>'}</td>
+      <td class="act"><button type="button" data-edit="${esc(p.id)}">수정</button></td>
+    </tr>`).join('') : emptyRow(6, places.length ? '검색과 맞는 촬영지가 없다.' : '아직 등록된 촬영지가 없다.');
+
   for (const btn of $('placeRows').querySelectorAll('[data-edit]')) {
-    btn.onclick = () => editPlace(places.find((p) => p.id === btn.dataset.edit));
+    btn.onclick = () => openPlace(places.find((p) => p.id === btn.dataset.edit));
   }
+}
+
+$('artistSearch').oninput = renderArtists;
+$('boardSearch').oninput = renderBoards;
+$('placeSearch').oninput = renderPlaces;
+
+/** 게시판 폼의 아이돌 선택과 촬영지 폼의 연결 아티스트 칩. 아티스트 목록이 원본이다. */
+function fillArtistPickers() {
+  $('boardArtistId').innerHTML = artists
+    .map((a) => `<option value="${esc(a.id)}">${esc(a.name?.ko ?? a.id)}</option>`)
+    .join('');
+  $('placeArtistChips').innerHTML = artists.map((a) => `
+    <label><input type="checkbox" value="${esc(a.id)}"> ${esc(a.name?.ko ?? a.id)}</label>`).join('');
+}
+
+// ── 서랍 ──────────────────────────────────────────────────────────────────────
+
+const PANES = ['artistForm', 'boardForm', 'placeForm'];
+
+function openDrawer(pane, title) {
+  for (const id of PANES) $(id).hidden = id !== pane;
+  $('drawerTitle').textContent = title;
+  $('drawer').hidden = false;
+  $('scrim').hidden = false;
+  $('drawer').querySelector('.pane:not([hidden]) input, .pane:not([hidden]) select')?.focus();
+}
+
+function closeDrawer() {
+  $('drawer').hidden = true;
+  $('scrim').hidden = true;
+}
+$('drawerClose').onclick = closeDrawer;
+$('scrim').onclick = closeDrawer;
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('drawer').hidden) closeDrawer(); });
+
+for (const btn of document.querySelectorAll('[data-new]')) {
+  btn.onclick = () => ({ artist: openArtist, board: openBoard, place: openPlace })[btn.dataset.new]();
 }
 
 // ── 삭제 ──────────────────────────────────────────────────────────────────────
@@ -341,9 +645,10 @@ async function onDeleteArtist(artistId, btn) {
   btn.disabled = true;
   try {
     await deleteArtistFn({ artistId });
+    toast(`${artistId} 삭제 완료`, 'good');
     await load();
   } catch (err) {
-    alert(err.message);
+    toast(err.message, 'bad');
     btn.disabled = false;
   }
 }
@@ -353,34 +658,30 @@ async function onDeleteBoard(boardId, btn) {
   btn.disabled = true;
   try {
     await deleteBoardFn({ boardId });
+    toast(`${boardId} 삭제 완료`, 'good');
     await load();
   } catch (err) {
-    alert(err.message);
+    toast(err.message, 'bad');
     btn.disabled = false;
   }
 }
 
 // ── 아티스트 폼 ───────────────────────────────────────────────────────────────
 
-function editArtist(artist) {
-  $('artistFormTitle').textContent = `아티스트 수정 — ${artist.id}`;
-  $('artistId').value = artist.id;
-  $('artistId').disabled = true;
-  $('artistNameKo').value = artist.name?.ko ?? '';
-  $('artistNameEn').value = artist.name?.en ?? '';
-  $('artistInitial').value = artist.initial ?? '';
-  $('artistImageUrl').value = artist.imageUrl ?? '';
-  $('artistAccentColor').value = artist.accentColor ?? '';
-  $('artistMsg').textContent = '';
-  $('artistForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-$('artistReset').onclick = () => {
+function openArtist(artist) {
   $('artistForm').reset();
-  $('artistId').disabled = false;
-  $('artistFormTitle').textContent = '아티스트 추가';
   $('artistMsg').textContent = '';
-};
+  $('artistId').disabled = Boolean(artist);
+  if (artist) {
+    $('artistId').value = artist.id;
+    $('artistNameKo').value = artist.name?.ko ?? '';
+    $('artistNameEn').value = artist.name?.en ?? '';
+    $('artistInitial').value = artist.initial ?? '';
+    $('artistImageUrl').value = artist.imageUrl ?? '';
+    $('artistAccentColor').value = artist.accentColor ?? '';
+  }
+  openDrawer('artistForm', artist ? `아티스트 수정 — ${artist.id}` : '아티스트 추가');
+}
 
 $('artistForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -397,12 +698,12 @@ $('artistForm').onsubmit = async (e) => {
   $('artistSave').disabled = true;
   try {
     const { data } = await saveArtist(payload);
-    $('artistMsg').textContent = `${data.artistId} ${data.created ? '추가' : '수정'} 완료`;
-    $('artistMsg').className = 'msg good';
+    toast(`${data.artistId} ${data.created ? '추가' : '수정'} 완료`, 'good');
+    closeDrawer();
     await load();
   } catch (err) {
     $('artistMsg').textContent = err.message;
-    $('artistMsg').className = 'msg bad';
+    $('artistMsg').className = 'msg grow bad';
   } finally {
     $('artistSave').disabled = false;
   }
@@ -412,35 +713,32 @@ $('artistForm').onsubmit = async (e) => {
 
 function syncKind() {
   const free = $('kind').value === 'free';
-  $('boardArtistField').classList.toggle('hidden', free);
+  $('boardArtistField').hidden = free;
   // 자유게시판은 하나뿐이고 보관하면 앱의 기본 탭이 사라진다. 함수도 거부한다.
   $('archived').disabled = free;
   if (free) $('archived').checked = false;
 }
 $('kind').onchange = syncKind;
 
-function editBoard(board) {
-  $('boardFormTitle').textContent = `게시판 수정 — ${board.id}`;
-  $('kind').value = board.kind;
-  syncKind();
-  if (board.kind === 'artist') $('boardArtistId').value = board.id;
-  $('nameKo').value = board.name?.ko ?? '';
-  $('nameEn').value = board.name?.en ?? '';
-  $('descKo').value = board.description?.ko ?? '';
-  $('descEn').value = board.description?.en ?? '';
-  $('accentColor').value = board.accentColor ?? '';
-  $('order').value = board.order ?? 0;
-  $('archived').checked = Boolean(board.archived);
-  $('msg').textContent = '';
-  $('boardForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-$('reset').onclick = () => {
+function openBoard(board) {
   $('boardForm').reset();
-  $('boardFormTitle').textContent = '게시판 추가';
   $('msg').textContent = '';
-  syncKind();
-};
+  if (board) {
+    $('kind').value = board.kind;
+    syncKind();
+    if (board.kind === 'artist') $('boardArtistId').value = board.id;
+    $('nameKo').value = board.name?.ko ?? '';
+    $('nameEn').value = board.name?.en ?? '';
+    $('descKo').value = board.description?.ko ?? '';
+    $('descEn').value = board.description?.en ?? '';
+    $('accentColor').value = board.accentColor ?? '';
+    $('order').value = board.order ?? 0;
+    $('archived').checked = Boolean(board.archived);
+  } else {
+    syncKind();
+  }
+  openDrawer('boardForm', board ? `게시판 수정 — ${board.id}` : '게시판 추가');
+}
 
 $('boardForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -450,14 +748,14 @@ $('boardForm').onsubmit = async (e) => {
   const accentColor = $('accentColor').value.trim();
   if ((descKo === '') !== (descEn === '')) {
     $('msg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
-    $('msg').className = 'msg bad';
+    $('msg').className = 'msg grow bad';
     return;
   }
 
   // ponytail: 저장은 merge 다. 설명이나 강조색을 비워 저장해도 기존 값이 지워지지는
   // 않는다. 지우기가 필요해지면 saveBoard 에 삭제할 필드 목록을 실어 보내면 된다.
   const payload = {
-    boardId: kind === 'free' ? 'free' : $('boardArtistId').value,
+    boardId: kind === 'free' ? FREE_BOARD_ID : $('boardArtistId').value,
     kind,
     name: { ko: $('nameKo').value.trim(), en: $('nameEn').value.trim() },
     order: Number($('order').value),
@@ -469,47 +767,41 @@ $('boardForm').onsubmit = async (e) => {
   $('save').disabled = true;
   try {
     const { data } = await saveBoard(payload);
-    $('msg').textContent = `${data.boardId} ${data.created ? '추가' : '수정'} 완료`;
-    $('msg').className = 'msg good';
+    toast(`${data.boardId} ${data.created ? '추가' : '수정'} 완료`, 'good');
+    closeDrawer();
     await load();
   } catch (err) {
     $('msg').textContent = err.message;
-    $('msg').className = 'msg bad';
+    $('msg').className = 'msg grow bad';
   } finally {
     $('save').disabled = false;
   }
 };
 
-syncKind();
-
 // ── 촬영지 폼 ─────────────────────────────────────────────────────────────────
 
 let editingPlaceId;
 
-function editPlace(place) {
-  editingPlaceId = place.id;
-  $('placeFormTitle').textContent = `촬영지 수정 — ${place.id}`;
-  $('placeNameKo').value = place.name?.ko ?? '';
-  $('placeNameEn').value = place.name?.en ?? '';
-  $('placeLat').value = place.location?.latitude ?? '';
-  $('placeLng').value = place.location?.longitude ?? '';
-  $('placeRadius').value = place.radiusMeters ?? 50;
-  $('placeAddress').value = place.address ?? '';
-  $('placeCoverImageUrl').value = place.coverImageUrl ?? '';
-  $('placeDescKo').value = place.description?.ko ?? '';
-  $('placeDescEn').value = place.description?.en ?? '';
-  const ids = new Set(place.artistIds ?? []);
-  for (const box of $('placeArtistChips').querySelectorAll('input')) box.checked = ids.has(box.value);
-  $('placeMsg').textContent = '';
-  $('placeForm').scrollIntoView({ behavior: 'smooth' });
-}
-
-$('placeReset').onclick = () => {
-  editingPlaceId = undefined;
+function openPlace(place) {
   $('placeForm').reset();
-  $('placeFormTitle').textContent = '촬영지 추가';
   $('placeMsg').textContent = '';
-};
+  editingPlaceId = place?.id;
+  for (const box of $('placeArtistChips').querySelectorAll('input')) box.checked = false;
+  if (place) {
+    $('placeNameKo').value = place.name?.ko ?? '';
+    $('placeNameEn').value = place.name?.en ?? '';
+    $('placeLat').value = place.location?.latitude ?? '';
+    $('placeLng').value = place.location?.longitude ?? '';
+    $('placeRadius').value = place.radiusMeters ?? 50;
+    $('placeAddress').value = place.address ?? '';
+    $('placeCoverImageUrl').value = place.coverImageUrl ?? '';
+    $('placeDescKo').value = place.description?.ko ?? '';
+    $('placeDescEn').value = place.description?.en ?? '';
+    const ids = new Set(place.artistIds ?? []);
+    for (const box of $('placeArtistChips').querySelectorAll('input')) box.checked = ids.has(box.value);
+  }
+  openDrawer('placeForm', place ? `촬영지 수정 — ${place.id}` : '촬영지 추가');
+}
 
 $('placeForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -520,7 +812,7 @@ $('placeForm').onsubmit = async (e) => {
   const artistIds = [...$('placeArtistChips').querySelectorAll('input:checked')].map((b) => b.value);
   if ((descKo === '') !== (descEn === '')) {
     $('placeMsg').textContent = '설명은 한국어와 영어를 둘 다 채우거나 둘 다 비운다.';
-    $('placeMsg').className = 'msg bad';
+    $('placeMsg').className = 'msg grow bad';
     return;
   }
 
@@ -539,13 +831,12 @@ $('placeForm').onsubmit = async (e) => {
   $('placeSave').disabled = true;
   try {
     const { data } = await savePlace(payload);
-    editingPlaceId = data.placeId;
-    $('placeMsg').textContent = `${data.placeId} ${data.created ? '추가' : '수정'} 완료`;
-    $('placeMsg').className = 'msg good';
+    toast(`${data.placeId} ${data.created ? '추가' : '수정'} 완료`, 'good');
+    closeDrawer();
     await load();
   } catch (err) {
     $('placeMsg').textContent = err.message;
-    $('placeMsg').className = 'msg bad';
+    $('placeMsg').className = 'msg grow bad';
   } finally {
     $('placeSave').disabled = false;
   }
