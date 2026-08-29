@@ -13,6 +13,7 @@ import {
   ACCURACY_GATE_M,
   CLOCK_SKEW_MIN,
   DEFAULT_RADIUS_M,
+  DOC_ID_RE,
   GRANT_TTL_MIN,
   IDEMPOTENCY_KEY_RE,
   MAX_READINGS,
@@ -124,6 +125,17 @@ function str(data: Data, key: string): string {
   return v;
 }
 
+/**
+ * 문서 id 로 쓸 문자열. str 과 달리 글자를 따진다 — 슬래시가 통과하면
+ * `places/${placeId}` 가 `places/a/reviews/b` 가 되어, 리뷰 문서를 장소 문서로
+ * 읽거나 그 아래에 쓰게 된다. 경로를 조립하기 전이 유일하게 막을 수 있는 자리다.
+ */
+function docId(data: Data, key: string): string {
+  const v = str(data, key);
+  if (!DOC_ID_RE.test(v)) throw new HttpsError('invalid-argument', `${key} 가 올바른 id 가 아니다`);
+  return v;
+}
+
 function num(data: Data, key: string): number {
   const v = data[key];
   if (typeof v !== 'number' || !Number.isFinite(v)) {
@@ -203,7 +215,7 @@ export const verifyLocation = onCall(async (req) => {
     uid, 'verify', VERIFY_DAILY_LIMIT, 'verify_daily_limit', '오늘 인증 시도 한도를 다 썼다',
   );
 
-  const placeId = str(data, 'placeId');
+  const placeId = docId(data, 'placeId');
   const lat = num(data, 'lat');
   const lng = num(data, 'lng');
   const accuracy = num(data, 'accuracy');
@@ -217,7 +229,7 @@ export const verifyLocation = onCall(async (req) => {
     throw new HttpsError('invalid-argument', 'capturedAt 이 서버 시각과 너무 멀다');
   }
   const isMock = data.isMock === true;
-  const sessionId = typeof data.sessionId === 'string' ? data.sessionId : undefined;
+  const sessionId = typeof data.sessionId === 'string' ? docId(data, 'sessionId') : undefined;
 
   // 기준 좌표는 반드시 서버가 가진 값이다. 클라이언트가 보낸 좌표는 판정 대상일 뿐이다.
   const placeSnap = await db.doc(`places/${placeId}`).get();
@@ -381,7 +393,7 @@ async function jumpedFromLastTicket(uid: string, here: LatLng, at: Date): Promis
 export const issueTicket = onCall(async (req) => {
   const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
-  const grantToken = str(data, 'grantToken');
+  const grantToken = docId(data, 'grantToken');
   const photoPath = str(data, 'photoPath');
   const visibility = str(data, 'visibility');
   if (visibility !== 'public' && visibility !== 'private') {
@@ -543,7 +555,7 @@ async function rotateDownloadUrl(path: string): Promise<string> {
 export const enterRaffle = onCall(async (req) => {
   const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
-  const raffleId = str(data, 'raffleId');
+  const raffleId = docId(data, 'raffleId');
   const idempotencyKey = str(data, 'idempotencyKey');
   if (!IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
     throw new HttpsError('invalid-argument', 'idempotencyKey 형식이 아니다');
@@ -722,6 +734,9 @@ async function fetchRoute(
 
 /** 촬영지 문서에서 좌표를 읽는다. 클라이언트가 보낸 좌표는 판정에도 경로에도 쓰지 않는다. */
 async function placeCoords(placeId: string): Promise<{ at: LatLng; name: string }> {
+  // getRoute 의 목록, 챗봇의 towardPlaceId, 모델이 채운 plan_route 인자가 모두 이리로
+  // 모인다. 셋을 따로 검사하는 대신 경로를 만드는 이 한 자리에서 막는다.
+  if (!DOC_ID_RE.test(placeId)) throw new HttpsError('invalid-argument', `올바른 장소 id 가 아니다: ${placeId}`);
   const snap = await db.doc(`places/${placeId}`).get();
   const place = snap.data();
   if (!place) throw new HttpsError('not-found', `없는 장소다: ${placeId}`);
@@ -891,7 +906,7 @@ export const askAssistant = onCall(
     // 앱은 사용자가 고른 최애를 함께 보낸다. 이름을 미리 붙여 두면 "우리 애 촬영지" 처럼
     // 이름 없이 물어도 find_filming_spots 의 artist 인자를 모델이 채울 수 있다.
     if (typeof data.artistId === 'string' && data.artistId !== '') {
-      const artist = (await db.doc(`artists/${data.artistId}`).get()).data();
+      const artist = (await db.doc(`artists/${docId(data, 'artistId')}`).get()).data();
       const name = (artist?.name as Data | undefined)?.ko;
       if (typeof name === 'string') context = `사용자의 최애는 "${name}" 이다.`;
     }

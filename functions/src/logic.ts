@@ -170,7 +170,11 @@ export interface BoardDoc {
   accentColor?: string;
 }
 
-const BOARD_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/**
+ * 문서 id 에 허용하는 글자. 슬래시가 들어가면 `places/{id}` 가 더 깊은 경로가 되어
+ * 하위 컬렉션 문서를 장소 문서인 척 읽게 만들 수 있다 — 경로를 만들기 전에 막는다.
+ */
+export const DOC_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
 function localized(value: unknown, field: string, required: boolean) {
@@ -193,7 +197,7 @@ function localized(value: unknown, field: string, required: boolean) {
  */
 export function normalizeBoard(input: BoardInput): { boardId: string; doc: BoardDoc } {
   const boardId = input.boardId;
-  if (typeof boardId !== 'string' || !BOARD_ID_RE.test(boardId)) {
+  if (typeof boardId !== 'string' || !DOC_ID_RE.test(boardId)) {
     throw new Error('boardId 는 [A-Za-z0-9_-] 1~64자다');
   }
 
@@ -258,7 +262,7 @@ export interface ArtistDoc {
  */
 export function normalizeArtist(input: ArtistInput): { artistId: string; doc: ArtistDoc } {
   const artistId = input.artistId;
-  if (typeof artistId !== 'string' || !BOARD_ID_RE.test(artistId)) {
+  if (typeof artistId !== 'string' || !DOC_ID_RE.test(artistId)) {
     throw new Error('artistId 는 [A-Za-z0-9_-] 1~64자다');
   }
 
@@ -316,7 +320,7 @@ export interface PlaceDoc {
  */
 export function normalizePlace(input: PlaceInput): { placeId: string | undefined; doc: PlaceDoc } {
   const placeId = input.placeId;
-  if (placeId !== undefined && (typeof placeId !== 'string' || !BOARD_ID_RE.test(placeId))) {
+  if (placeId !== undefined && (typeof placeId !== 'string' || !DOC_ID_RE.test(placeId))) {
     throw new Error('placeId 는 [A-Za-z0-9_-] 1~64자다');
   }
 
@@ -340,7 +344,7 @@ export function normalizePlace(input: PlaceInput): { placeId: string | undefined
   }
 
   const artistIds = input.artistIds === undefined ? [] : input.artistIds;
-  if (!Array.isArray(artistIds) || artistIds.some((id) => typeof id !== 'string' || !BOARD_ID_RE.test(id))) {
+  if (!Array.isArray(artistIds) || artistIds.some((id) => typeof id !== 'string' || !DOC_ID_RE.test(id))) {
     throw new Error('artistIds 는 문자열 배열이다');
   }
 
