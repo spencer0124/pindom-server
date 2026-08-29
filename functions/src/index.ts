@@ -707,16 +707,29 @@ async function geocodePlace(query: string, key: string): Promise<{ note: string 
   return { lat: Number(d.y), lng: Number(d.x), name: String(d.place_name ?? query) };
 }
 
-/**
- * 카카오모빌리티 자동차 길찾기. 좌표는 x=경도, y=위도 로 보내고 vertexes 도 같은 순서로 온다.
- * 경로를 못 찾는 것은 흔한 일이라(섬, 도로 없는 지점) 던지지 않고 null 로 돌려준다.
- */
-async function fetchRoute(
+/** 카카오모빌리티가 105/106 으로 거절했을 때, 그 지점을 옆으로 옮겨 재시도하는 폭 — 약 25m. */
+const NUDGE_LAT = 25 / 111_320;
+const NUDGE_LNG = 25 / 88_800; // 서울 위도(약 37.5˚)에서 경도 1도의 실거리로 나눈 근사치
+
+/** 인증 좌표(예: 보행교 위)가 카카오모빌리티엔 "도로 없음"으로 보일 때 시도할 네 방향. */
+const NUDGES: LatLng[] = [
+  { lat: NUDGE_LAT, lng: 0 },
+  { lat: -NUDGE_LAT, lng: 0 },
+  { lat: 0, lng: NUDGE_LNG },
+  { lat: 0, lng: -NUDGE_LNG },
+];
+
+function nudged(p: LatLng, d: LatLng): LatLng {
+  return { lat: p.lat + d.lat, lng: p.lng + d.lng };
+}
+
+/** 한 번의 카카오모빌리티 호출. 결과와 함께 result_code 도 돌려줘 재시도 여부를 판단하게 한다. */
+async function requestRoute(
   origin: LatLng,
   destination: LatLng,
   stops: LatLng[],
   key: string,
-): Promise<Route | null> {
+): Promise<{ route: Route | null; resultCode: number | null }> {
   const res = await fetch('https://apis-navi.kakaomobility.com/v1/waypoints/directions', {
     method: 'POST',
     headers: { Authorization: `KakaoAK ${key}`, 'Content-Type': 'application/json' },
@@ -728,8 +741,43 @@ async function fetchRoute(
       priority: 'RECOMMEND',
     }),
   });
-  if (!res.ok) return null;
-  return parseRoute(await res.json());
+  if (!res.ok) return { route: null, resultCode: null };
+  const body = (await res.json()) as { routes?: Array<{ result_code?: unknown }> };
+  const code = Number(body.routes?.[0]?.result_code);
+  return { route: parseRoute(body), resultCode: Number.isFinite(code) ? code : null };
+}
+
+/**
+ * 카카오모빌리티 자동차 길찾기. 좌표는 x=경도, y=위도 로 보내고 vertexes 도 같은 순서로 온다.
+ * 경로를 못 찾는 것은 흔한 일이라(섬, 도로 없는 지점) 던지지 않고 null 로 돌려준다.
+ *
+ * 인증 좌표는 GPS 인증 반경의 기준점이라(backend-contract.md) 실제 촬영지 그 자리를 가리켜야
+ * 하고, 그게 꼭 차량이 들어가는 도로 위는 아니다(보행교, 광장 등). 105/106(출발·도착지 주변
+ * 도로에 유고 정보)은 바로 그 증상이라, 좌표를 바꾸는 대신 요청에서만 그 지점을 살짝 옆으로
+ * 옮겨 다시 물어본다 — 저장된 좌표에는 손대지 않는다.
+ */
+async function fetchRoute(
+  origin: LatLng,
+  destination: LatLng,
+  stops: LatLng[],
+  key: string,
+): Promise<Route | null> {
+  let tryOrigin = origin;
+  let tryDestination = destination;
+  for (let attempt = 0; attempt <= NUDGES.length; attempt += 1) {
+    const { route, resultCode } = await requestRoute(tryOrigin, tryDestination, stops, key);
+    if (route) return route;
+    // 105/106 이 아니면(예: 애초에 너무 멀다) 옮겨봐야 소용없다.
+    if (resultCode !== 105 && resultCode !== 106) return null;
+    if (attempt === NUDGES.length) {
+      console.warn('fetchRoute: 105/106 을 재시도로도 못 피했다', { origin, destination, resultCode });
+      return null;
+    }
+    const d = NUDGES[attempt] as LatLng;
+    if (resultCode === 105) tryOrigin = nudged(origin, d);
+    else tryDestination = nudged(destination, d);
+  }
+  return null;
 }
 
 /** 촬영지 문서에서 좌표를 읽는다. 클라이언트가 보낸 좌표는 판정에도 경로에도 쓰지 않는다. */
