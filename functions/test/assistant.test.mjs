@@ -15,6 +15,7 @@ import {
   dayKeyKst,
   decimate,
   dedupe,
+  nearbySpots,
   nextCallCount,
   parseRoute,
   runToolLoop,
@@ -196,6 +197,22 @@ describe('decimate', () => {
     assert.equal(out.length, MAX_PATH_POINTS);
     assert.deepEqual(out[0], path[0]);
     assert.deepEqual(out.at(-1), path.at(-1));
+  });
+});
+
+describe('nearbySpots', () => {
+  const spots = Array.from({ length: 15 }, (_, i) => ({ placeId: `p${i}` }));
+
+  it('기준 좌표 있고 아이돌로 안 좁혔으면 가까운 10곳만 남긴다', () => {
+    assert.equal(nearbySpots(spots, true, false).length, 10);
+  });
+
+  it('아이돌로 좁혔으면 자르지 않는다', () => {
+    assert.equal(nearbySpots(spots, true, true).length, 15);
+  });
+
+  it('기준 좌표가 없으면 자르지 않는다', () => {
+    assert.equal(nearbySpots(spots, false, false).length, 15);
   });
 });
 

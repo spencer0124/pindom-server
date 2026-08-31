@@ -113,6 +113,14 @@ export function dedupe(list: Suggestion[]): Suggestion[] {
 }
 
 /**
+ * "주변" 추천이면(기준 좌표는 있고 아이돌로는 안 좁혔으면) 가까운 곳만 남긴다.
+ * 아이돌로 좁혔을 때는 로스터가 이미 작아서 자르지 않는다.
+ */
+export function nearbySpots<T>(spots: T[], hasOrigin: boolean, hasArtist: boolean, limit = 10): T[] {
+  return hasOrigin && !hasArtist ? spots.slice(0, limit) : spots;
+}
+
+/**
  * 클라이언트가 보낸 이전 대화를 자른다. role 은 두 가지만 통과시킨다.
  *
  * 본문은 `content` 로도 `text` 로도 온다 — 앱의 AssistantMessage 는 `text` 를 쓴다.
