@@ -204,6 +204,7 @@ describe('stripMarkdown', () => {
     assert.equal(stripMarkdown('**N서울타워 전망대**는 좋다'), 'N서울타워 전망대는 좋다');
     assert.equal(stripMarkdown('# 제목\n- 목록'), '제목\n목록');
     assert.equal(stripMarkdown('평범한 문장'), '평범한 문장');
+    assert.equal(stripMarkdown('[자세히 보기](http://place.map.kakao.com/123)는 여기'), '자세히 보기는 여기');
   });
 });
 

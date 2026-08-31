@@ -844,7 +844,7 @@ async function findFilmingSpots(args: Data, near?: LatLng): Promise<{ result: Da
   const snap = await query.get();
 
   const origin = coordArg(args) ?? near;
-  const spots: Spot[] = snap.docs
+  let spots: Spot[] = snap.docs
     .map((d) => {
       const place = d.data();
       const at = geo(place.location as GeoPoint);
@@ -859,6 +859,10 @@ async function findFilmingSpots(args: Data, near?: LatLng): Promise<{ result: Da
       };
     })
     .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+
+  // 기준 좌표가 있으면 "주변" 추천이다 — 전국 로스터를 다 넘기지 않고 가까운 곳만 준다.
+  // 아이돌로 좁혔을 때는 이미 목록이 작으니 자르지 않는다.
+  if (origin && !artistId) spots = spots.slice(0, 10);
 
   return spots.length === 0 ? { result: { note: '등록된 촬영지가 없다' } } : { result: { spots }, spots };
 }
