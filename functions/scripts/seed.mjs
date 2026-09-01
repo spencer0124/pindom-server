@@ -92,10 +92,20 @@ for (const course of data.courses) {
 }
 
 for (const raffle of data.raffles) {
-  const { id, closesInHours, ...rest } = raffle;
-  const existed = await upsert(`raffles/${id}`,
-    { ...rest, closesAt: Timestamp.fromMillis(Date.now() + closesInHours * 60 * 60 * 1000) },
-    { entryCount: 0 });
+  const { id, closesInHours, status, ...rest } = raffle;
+  const ref = db.doc(`raffles/${id}`);
+  const existed = (await ref.get()).exists;
+  await ref.set(
+    existed
+      ? rest
+      : {
+          ...rest,
+          status,
+          closesAt: Timestamp.fromMillis(Date.now() + closesInHours * 60 * 60 * 1000),
+          entryCount: 0,
+        },
+    { merge: true },
+  );
   if (existed) kept += 1;
 }
 

@@ -46,7 +46,7 @@ describe('nextCallCount', () => {
   });
 
   it('상한에 정확히 걸린다', () => {
-    // 상한이 30이면 30번째는 통과하고 31번째가 막혀야 한다.
+    // 상한이 100이면 100번째는 통과하고 101번째가 막혀야 한다.
     assert.ok(nextCallCount('2026-08-26', DAILY_CALL_LIMIT - 1, '2026-08-26') <= DAILY_CALL_LIMIT);
     assert.ok(nextCallCount('2026-08-26', DAILY_CALL_LIMIT, '2026-08-26') > DAILY_CALL_LIMIT);
   });

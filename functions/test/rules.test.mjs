@@ -198,6 +198,7 @@ describe('나머지', () => {
     await assertFails(setDoc(doc(db, 'posts', 'p5'), post({ authorTier: 'clubGo' })));
     await assertFails(setDoc(doc(db, 'posts', 'p6'),
       post({ createdAt: Timestamp.fromMillis(4102444800000) })));
+    await assertSucceeds(setDoc(doc(db, 'posts', 'p7-legacy'), post({ boardId: 'board-free' })));
     // 없는 게시판에 쓴 글은 어느 피드 쿼리에도 안 잡힌다 — 컬렉션에만 남는 유령이 된다.
     await assertFails(setDoc(doc(db, 'posts', 'p8'), post({ boardId: 'no-such-board' })));
   });
