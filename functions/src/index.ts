@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, GeoPoint, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { setGlobalOptions } from 'firebase-functions';
+import { logger, setGlobalOptions } from 'firebase-functions';
 import { defineBoolean, defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -934,7 +934,10 @@ async function routeCourseId(artistId: unknown, spots: Spot[]): Promise<string |
         && placeIds.length === ids.size
         && placeIds.every((id) => typeof id === 'string' && ids.has(id));
     })?.id;
-  } catch {
+  } catch (err) {
+    // courseId 는 덤이라 실패해도 답변은 나가야 한다. 다만 조용히 삼키면 규칙·색인
+    // 문제로 영영 안 붙는 것을 눈치챌 데가 없어서 로그는 남긴다.
+    logger.warn('routeCourseId 조회 실패', err);
     return undefined;
   }
 }
