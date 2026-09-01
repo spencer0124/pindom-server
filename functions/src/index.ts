@@ -1423,14 +1423,18 @@ export const deleteAccount = onCall(async (req) => {
 
 /** Public profile projection; never expose the private users document/email. */
 export const getPublicProfile = onCall(async (req) => {
-  requireVerifiedUid(req);
+  const uid = requireVerifiedUid(req);
   const userId = docId((req.data ?? {}) as Data, 'userId');
   const snap = await db.doc(`users/${userId}`).get();
   if (!snap.exists) throw new HttpsError('not-found', '없는 사용자다');
   const user = snap.data() as Data;
   // 가입 시 users 문서에 profileVisibility 를 쓰지 않는다 — 앱의 읽기 기본값도 'public' 이라
   // 값이 없는 것은 공개로 본다. 없음을 비공개로 치면 모든 신규 사용자의 프로필이 막힌다.
-  if (user.profileVisibility === 'private') throw new HttpsError('permission-denied', '비공개 프로필이다');
+  // 비공개는 남에게만 비공개다. 앱은 커뮤니티에서 작성자 이름을 눌러 프로필을 여는데,
+  // 자기 글의 작성자도 자기다 — 본인까지 막으면 자기 프로필을 열 방법이 없다.
+  if (userId !== uid && user.profileVisibility === 'private') {
+    throw new HttpsError('permission-denied', '비공개 프로필이다');
+  }
   return {
     userId,
     nickname: String(user.nickname ?? ''),
