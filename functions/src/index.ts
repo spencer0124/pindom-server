@@ -211,12 +211,6 @@ export const verifyLocation = onCall(async (req) => {
   const uid = requireVerifiedUid(req);
   const data = (req.data ?? {}) as Data;
 
-  // 상한 먼저. 세션 문서는 실패해도 생기고 verifyCount 는 성공할 때마다 늘어서,
-  // 이걸 안 막으면 반복 호출만으로 둘 다 무한히 부풀릴 수 있다.
-  await consumeDailyQuota(
-    uid, 'verify', VERIFY_DAILY_LIMIT, 'verify_daily_limit', '오늘 인증 시도 한도를 다 썼다',
-  );
-
   const placeId = docId(data, 'placeId');
   const lat = num(data, 'lat');
   const lng = num(data, 'lng');
@@ -232,6 +226,13 @@ export const verifyLocation = onCall(async (req) => {
   }
   const isMock = data.isMock === true;
   const sessionId = typeof data.sessionId === 'string' ? docId(data, 'sessionId') : undefined;
+
+  // 상한은 입력 검증 다음, 읽기·쓰기 앞이다. 형식이 틀린 요청은 한도를 깎지 않지만,
+  // 세션 문서는 실패해도 생기고 verifyCount 는 성공할 때마다 늘어서, 문서를 읽거나 쓰는
+  // 경로는 하나도 빠짐없이 이 상한 뒤에 둔다 — 아니면 반복 호출만으로 둘 다 부풀릴 수 있다.
+  await consumeDailyQuota(
+    uid, 'verify', VERIFY_DAILY_LIMIT, 'verify_daily_limit', '오늘 인증 시도 한도를 다 썼다',
+  );
 
   // 기준 좌표는 반드시 서버가 가진 값이다. 클라이언트가 보낸 좌표는 판정 대상일 뿐이다.
   const placeSnap = await db.doc(`places/${placeId}`).get();
@@ -589,22 +590,25 @@ export const enterRaffle = onCall(async (req) => {
     const cost = (raffle.ticketCost as number) ?? 0;
 
     // 오래된 티켓부터 쓴다. 계약서에 순서 규정이 없어 사용자에게 유리한 쪽으로 정했다.
-    const spendable = await tx.get(
-      db
-        .collection('tickets')
-        .where('userId', '==', uid)
-        .where('spent', '==', false)
-        .orderBy('issuedAt', 'asc')
-        .limit(cost),
-    );
-    if (spendable.size < cost) throw precondition('insufficient_tickets');
+    // 무료 응모(cost 0)면 쿼리를 아예 걸지 않는다 — limit(0) 은 Firestore 가 거부한다.
+    const spendable = cost > 0
+      ? await tx.get(
+        db
+          .collection('tickets')
+          .where('userId', '==', uid)
+          .where('spent', '==', false)
+          .orderBy('issuedAt', 'asc')
+          .limit(cost),
+      )
+      : undefined;
+    if ((spendable?.size ?? 0) < cost) throw precondition('insufficient_tickets');
 
     const user = (await tx.get(userRef)).data() ?? {};
     const balance = ((user.ticketBalance as number) ?? 0) - cost;
     if (balance < 0) throw precondition('insufficient_tickets');
 
-    const ticketIds = spendable.docs.map((d) => d.id);
-    for (const d of spendable.docs) {
+    const ticketIds = spendable?.docs.map((d) => d.id) ?? [];
+    for (const d of spendable?.docs ?? []) {
       tx.update(d.ref, { spent: true, spentOnEntryId: entryRef.id });
     }
 
@@ -641,7 +645,16 @@ export const enterRaffle = onCall(async (req) => {
 export const countRaffleEntry = onDocumentCreated('raffleEntries/{entryId}', async (event) => {
   const raffleId = event.data?.data().raffleId as string | undefined;
   if (!raffleId) return;
-  await db.doc(`raffles/${raffleId}`).update({ entryCount: FieldValue.increment(1) });
+  // 지워진 래플이면 update 가 NOT_FOUND 로 죽고, 트리거는 at-least-once 라 영원히 재시도한다.
+  try {
+    await db.doc(`raffles/${raffleId}`).update({ entryCount: FieldValue.increment(1) });
+  } catch (err) {
+    if ((err as { code?: number }).code === 5) {
+      logger.warn('countRaffleEntry: 없는 래플이라 집계를 건너뛴다', { raffleId });
+      return;
+    }
+    throw err;
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

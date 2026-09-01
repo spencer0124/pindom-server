@@ -248,7 +248,7 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly(
                          ['reporterId', 'targetType', 'targetId', 'reason', 'createdAt'])
                     && request.resource.data.reporterId == request.auth.uid
-                    && request.resource.data.targetType in ['post', 'comment', 'review', 'photo', 'user']
+                    && request.resource.data.targetType in ['post', 'comment', 'review', 'photo', 'user', 'assistant']
                     && request.resource.data.targetId is string
                     && request.resource.data.targetId != ''
                     && request.resource.data.targetId.size() <= 128
