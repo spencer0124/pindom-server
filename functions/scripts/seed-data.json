@@ -32,7 +32,7 @@
   ],
   "boards": [
     {
-      "id": "free",
+      "id": "board-free",
       "kind": "free",
       "name": {
         "ko": "자유게시판",

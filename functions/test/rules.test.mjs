@@ -22,7 +22,7 @@ const BOB = 'bob';
 // 프로필 수정 테스트 전용. 앨리스의 닉네임을 바꾸면 리뷰·게시글의 작성자 대조가 깨진다.
 const CAROL = 'carol';
 const PLACE = 'place1';
-const BOARD = 'free';
+const BOARD = 'board-free';
 const OTHER_PLACE = 'place2';
 
 let env;
