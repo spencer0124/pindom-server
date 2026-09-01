@@ -32,3 +32,7 @@ CLAUDE.md
 # functions/.env 는 Cloud Functions 파라미터용이고 비밀이 아니다 — 비밀은 Secret Manager 에
 # 있다. 배포 시점 값이라 코드 리뷰에 보여야 해서 위의 .env 무시 규칙에서 되살린다.
 !functions/.env
+
+# 지식 그래프 산출물·로컬 스크린샷 — 세션 로컬, 저장소 산출물 아님
+graphify-out/
+스크린샷 *.png
