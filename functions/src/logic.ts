@@ -50,6 +50,9 @@ export const MAX_RADIUS_M = 500;
  */
 export const VERIFY_DAILY_LIMIT = 200;
 
+/** 사용자당 하루 길찾기 호출 상한. 카카오 API 비용·남용을 함께 제한한다. */
+export const ROUTE_DAILY_LIMIT = 200;
+
 export type Tier = 'club10' | 'club20' | 'clubGo';
 
 export interface LatLng {

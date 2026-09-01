@@ -6,8 +6,7 @@
 import { distanceMeters, type LatLng } from './logic';
 
 /** 사용자당 하루 호출 상한. 이 함수는 호출 한 번이 OpenAI 청구서 한 줄이다. */
-// ponytail: 빌드 테스트 기간 임시로 사실상 무제한. 정식 배포 전에 30으로 되돌린다.
-export const DAILY_CALL_LIMIT = 10_000;
+export const DAILY_CALL_LIMIT = 100;
 
 /** 모델에 넘기는 이전 대화 길이. 클라이언트가 보낸 것을 그대로 믿지 않는다. */
 export const MAX_HISTORY = 10;

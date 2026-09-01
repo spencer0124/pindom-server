@@ -21,6 +21,7 @@ import {
   normalizePlace,
   containsBanned,
   MAX_RADIUS_M,
+  ROUTE_DAILY_LIMIT,
   tierFor,
 } from '../lib/logic.js';
 
@@ -101,6 +102,9 @@ describe('mintSerial', () => {
 describe('상수', () => {
   it('정확도 게이트는 65m — 도심 안드로이드 실측을 흡수하는 값', () => {
     assert.equal(ACCURACY_GATE_M, 65);
+  });
+  it('길찾기 호출 상한은 200회/일', () => {
+    assert.equal(ROUTE_DAILY_LIMIT, 200);
   });
 });
 

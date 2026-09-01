@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, GeoPoint, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { setGlobalOptions } from 'firebase-functions';
+import { logger, setGlobalOptions } from 'firebase-functions';
 import { defineBoolean, defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -17,6 +17,7 @@ import {
   GRANT_TTL_MIN,
   IDEMPOTENCY_KEY_RE,
   MAX_READINGS,
+  ROUTE_DAILY_LIMIT,
   SESSION_SPEED_KMH,
   TICKET_SPEED_KMH,
   VERIFY_DAILY_LIMIT,
@@ -82,7 +83,7 @@ function requireUid(req: CallableRequest): string {
  * 로그인에 더해 이메일 인증까지 요구한다. 돈이 걸린 호출 — 남의 청구서(OpenAI)가 나가거나
  * 화폐(티켓)가 발행되는 자리 — 에만 붙인다.
  *
- * 이 백엔드의 비용 방어는 전부 uid 당으로 걸려 있다(AI 30회/일, 인증 200회/일, 쿨다운 30일).
+ * 이 백엔드의 비용 방어는 전부 uid 당으로 걸려 있다(AI 100회/일, 인증 200회/일, 쿨다운 30일).
  * 그런데 이메일·비밀번호 가입이 열려 있고 가입 쿼터도 없어서, uid 는 사실상 공짜다 —
  * 계정을 하나 더 만들면 모든 한도가 그대로 초기화된다. 한도를 아무리 조여도 그 위가 안
  * 막히면 소용이 없다.
@@ -168,7 +169,7 @@ const geo = (p: GeoPoint): LatLng => ({ lat: p.latitude, lng: p.longitude });
  */
 async function consumeDailyQuota(
   uid: string,
-  field: 'verify' | 'assistant',
+  field: 'verify' | 'assistant' | 'route',
   limit: number,
   errorCode: string,
   message: string,
@@ -656,9 +657,9 @@ async function searchNearby(
   key: string,
   origin?: LatLng,
 ): Promise<{ places: Suggestion[]; note?: string }> {
-  const lat = Number(args.lat);
-  const lng = Number(args.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { places: [], note: '좌표가 없다' };
+  const center = coordArg(args) ?? origin;
+  if (!center) return { places: [], note: '좌표가 없다' };
+  const { lat, lng } = center;
 
   const radius = Math.min(Math.max(Number(args.radiusMeters) || 1_000, 100), 20_000);
   const category = KAKAO_CATEGORIES[args.category as keyof typeof KAKAO_CATEGORIES];
@@ -683,7 +684,7 @@ async function searchNearby(
 
   const body = (await res.json()) as { documents?: Data[] };
   const places = (body.documents ?? [])
-    .map((d) => toSuggestion(d, origin))
+    .map((d) => toSuggestion(d, center))
     .filter((s): s is Suggestion => s !== null);
   return { places };
 }
@@ -809,6 +810,9 @@ interface Spot {
   distanceMeters?: number;
 }
 
+/** A "nearby" answer must not surface a distant city just because the roster is small. */
+const NEARBY_FILMING_RADIUS_M = 100_000;
+
 /** 도구 인자로 온 좌표. 둘 다 성해야 좌표다 — 하나만 오면 없는 것으로 친다. */
 function coordArg(args: Data, latKey = 'lat', lngKey = 'lng'): LatLng | undefined {
   const lat = Number(args[latKey]);
@@ -823,7 +827,11 @@ function coordArg(args: Data, latKey = 'lat', lngKey = 'lng'): LatLng | undefine
  * 아이돌 이름은 사용자가 말한 그대로 오므로 artists 를 훑어 id 로 바꾼다. 로스터가
  * 작아서 전체 읽기로 충분하다 — places.search 가 앱에서 이미 같은 방식이다.
  */
-async function findFilmingSpots(args: Data, near?: LatLng): Promise<{ result: Data; spots?: Spot[] }> {
+async function findFilmingSpots(
+  args: Data,
+  near?: LatLng,
+  restrictToOrigin = false,
+): Promise<{ result: Data; spots?: Spot[] }> {
   const artist = typeof args.artist === 'string' ? args.artist.trim() : '';
   let artistId = '';
   if (artist) {
@@ -862,9 +870,12 @@ async function findFilmingSpots(args: Data, near?: LatLng): Promise<{ result: Da
     .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
 
   const nearby = nearbySpots(spots, Boolean(origin), Boolean(artistId));
-  return nearby.length === 0
+  const local = origin && (!artistId || restrictToOrigin || coordArg(args) != null)
+    ? nearby.filter((spot) => (spot.distanceMeters ?? Infinity) <= NEARBY_FILMING_RADIUS_M)
+    : nearby;
+  return local.length === 0
     ? { result: { note: '등록된 촬영지가 없다' } }
-    : { result: { spots: nearby }, spots: nearby };
+    : { result: { spots: local }, spots: local };
 }
 
 /**
@@ -910,6 +921,27 @@ async function planRoute(
   };
 }
 
+async function routeCourseId(artistId: unknown, spots: Spot[]): Promise<string | undefined> {
+  if (spots.length < 2) return undefined;
+  const ids = new Set(spots.map((spot) => spot.placeId));
+  try {
+    const snap = typeof artistId === 'string' && artistId !== ''
+      ? await db.collection('courses').where('artistId', '==', artistId).get()
+      : await db.collection('courses').get();
+    return snap.docs.find((doc) => {
+      const placeIds = doc.data().placeIds;
+      return Array.isArray(placeIds)
+        && placeIds.length === ids.size
+        && placeIds.every((id) => typeof id === 'string' && ids.has(id));
+    })?.id;
+  } catch (err) {
+    // courseId 는 덤이라 실패해도 답변은 나가야 한다. 다만 조용히 삼키면 규칙·색인
+    // 문제로 영영 안 붙는 것을 눈치챌 데가 없어서 로그는 남긴다.
+    logger.warn('routeCourseId 조회 실패', err);
+    return undefined;
+  }
+}
+
 async function callOpenAI(messages: ChatMessage[], key: string): Promise<ChatMessage> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -950,6 +982,11 @@ export const askAssistant = onCall(
         : undefined;
 
     let context = '';
+    // A geocoded place is the user's requested search center, not just context
+    // for the model. Keep it for the following tool call so 부산 cannot fall
+    // back to the device's current 서울 coordinates.
+    let searchNear = near;
+    let searchNearIsExplicit = false;
     let route: Route | null = null;
     // 답변이 가리키는 촬영지와, 그 순서가 동선인지. 앱은 이걸로 대화 안에 지도를 그린다.
     let spots: Spot[] = [];
@@ -996,12 +1033,12 @@ export const askAssistant = onCall(
       (msgs) => callOpenAI(msgs, OPENAI_API_KEY.value()),
       async (name, args) => {
         if (name === 'find_filming_spots') {
-          const found = await findFilmingSpots(args, near);
+          const found = await findFilmingSpots(args, searchNear, searchNearIsExplicit);
           if (found.spots) spots = found.spots;
           return found.result;
         }
         if (name === 'plan_route') {
-          const planned = await planRoute(args, near, KAKAO_REST_API_KEY.value());
+          const planned = await planRoute(args, searchNear, KAKAO_REST_API_KEY.value());
           // 경로 좌표는 모델에게 보내지 않는다 — 600점짜리 배열이고 모델은 쓸 데가 없다.
           // 앱이 지도에 선을 그릴 수 있게 응답에만 싣는다.
           if (planned.route) route = planned.route;
@@ -1014,15 +1051,22 @@ export const askAssistant = onCall(
         }
         if (name === 'geocode_place') {
           const query = typeof args.query === 'string' ? args.query : '';
-          return query ? await geocodePlace(query, KAKAO_REST_API_KEY.value()) : { note: '지명이 없다' };
+          if (!query) return { note: '지명이 없다' };
+          const found = await geocodePlace(query, KAKAO_REST_API_KEY.value());
+          if ('lat' in found && 'lng' in found) {
+            searchNear = { lat: found.lat, lng: found.lng };
+            searchNearIsExplicit = true;
+          }
+          return found;
         }
-        const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), near);
+        const found = await searchNearby(args, KAKAO_REST_API_KEY.value(), searchNear);
         return found.note ? { note: found.note } : { places: found.places };
       },
     );
 
     // 경로를 이미 받아왔으면 함께 돌려준다. 앱이 지도에 선을 그리려고 다시 부를 이유가 없다.
-    return { reply, suggestions, route, spots, ordered };
+    const courseId = ordered ? await routeCourseId(data.artistId, spots) : undefined;
+    return { reply, suggestions, route, spots, ordered, ...(courseId && { courseId }) };
   },
 );
 
@@ -1139,10 +1183,7 @@ export const savePlace = onCall(async (req) => {
 
 export const deleteBoard = onCall(async (req) => {
   requireAdmin(req);
-  const boardId = (req.data as Data)?.boardId;
-  if (typeof boardId !== 'string' || boardId === '') {
-    throw new HttpsError('invalid-argument', 'boardId 가 없다');
-  }
+  const boardId = docId((req.data ?? {}) as Data, 'boardId');
 
   const postSnap = await db.collection('posts').where('boardId', '==', boardId).limit(1).get();
   if (!postSnap.empty) {
@@ -1157,10 +1198,7 @@ export const deleteBoard = onCall(async (req) => {
 
 export const deleteArtist = onCall(async (req) => {
   requireAdmin(req);
-  const artistId = (req.data as Data)?.artistId;
-  if (typeof artistId !== 'string' || artistId === '') {
-    throw new HttpsError('invalid-argument', 'artistId 가 없다');
-  }
+  const artistId = docId((req.data ?? {}) as Data, 'artistId');
 
   const [boardSnap, placeSnap, courseSnap] = await Promise.all([
     db.doc(`boards/${artistId}`).get(),
@@ -1190,7 +1228,10 @@ export const deleteArtist = onCall(async (req) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) => {
-  requireVerifiedUid(req);
+  const uid = requireVerifiedUid(req);
+  await consumeDailyQuota(
+    uid, 'route', ROUTE_DAILY_LIMIT, 'route_daily_limit', '오늘 길찾기 한도를 다 썼다',
+  );
   const data = (req.data ?? {}) as Data;
 
   const placeIds = Array.isArray(data.placeIds) ? data.placeIds.filter((v) => typeof v === 'string') : [];
@@ -1378,4 +1419,29 @@ export const deleteAccount = onCall(async (req) => {
 
   await getAuth().deleteUser(uid);
   return { deletedDocs: refs.length + 1 };
+});
+
+/** Public profile projection; never expose the private users document/email. */
+export const getPublicProfile = onCall(async (req) => {
+  const uid = requireVerifiedUid(req);
+  const userId = docId((req.data ?? {}) as Data, 'userId');
+  const snap = await db.doc(`users/${userId}`).get();
+  if (!snap.exists) throw new HttpsError('not-found', '없는 사용자다');
+  const user = snap.data() as Data;
+  // 가입 시 users 문서에 profileVisibility 를 쓰지 않는다 — 앱의 읽기 기본값도 'public' 이라
+  // 값이 없는 것은 공개로 본다. 없음을 비공개로 치면 모든 신규 사용자의 프로필이 막힌다.
+  // 비공개는 남에게만 비공개다. 앱은 커뮤니티에서 작성자 이름을 눌러 프로필을 여는데,
+  // 자기 글의 작성자도 자기다 — 본인까지 막으면 자기 프로필을 열 방법이 없다.
+  if (userId !== uid && user.profileVisibility === 'private') {
+    throw new HttpsError('permission-denied', '비공개 프로필이다');
+  }
+  return {
+    userId,
+    nickname: String(user.nickname ?? ''),
+    bio: typeof user.bio === 'string' ? user.bio : '',
+    avatarUrl: typeof user.avatarUrl === 'string' ? user.avatarUrl : '',
+    ticketsIssued: Number(user.ticketsIssued ?? 0),
+    placesVisited: Number(user.placesVisited ?? 0),
+    tier: String(user.tier ?? 'club10'),
+  };
 });
