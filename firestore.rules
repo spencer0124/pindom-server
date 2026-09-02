@@ -127,7 +127,13 @@ service cloud.firestore {
       // 만드는 문서에 서버 전용 필드를 두면 필드마다 "끼워 넣지 마" 를 적어야 하고, 새
       // 카운터가 생길 때마다 그 목록을 잊지 않고 늘려야 한다. 닿을 수 없는 곳에 두는 편이
       // 잊어버릴 수 있는 방어보다 낫다.
+      //
+      // hasOnly 로 앱의 signUp 이 쓰는 여섯 필드만 — 없으면 가입 요청에 아무 필드나 실어
+      // 문서를 부풀릴 수 있다. 프로필의 나머지 필드는 나중에 update 가 자기 hasOnly 로
+      // 심사하며 들어온다.
       allow create: if isOwner(uid)
+                    && request.resource.data.keys().hasOnly(
+                         ['nickname', 'email', 'ticketBalance', 'ticketsIssued', 'placesVisited', 'createdAt'])
                     && request.resource.data.nickname is string
                     && request.resource.data.nickname.size() >= 1
                     && request.resource.data.nickname.size() <= 30
@@ -213,9 +219,13 @@ service cloud.firestore {
     function postShape() {
       return request.resource.data.body is string
              && request.resource.data.body.size() <= 5000
+             // 앱은 빈 목록을 보낸다. 규칙은 리스트의 원소를 들여다볼 수 없어 URL 을 검증할
+             // 방법이 없고, 열어두면 외부 주소(추적 픽셀 따위)가 피드에 실려 읽는 사람 모두의
+             // 화면에서 로드된다. 이미지 게시가 실제로 생기기 전까지는 빈 목록으로 못 박는다 —
+             // 그때 원소별 검증 방법(예: 고정 개수의 인덱스 슬롯마다 URL 접두사 검사)과 함께 넓힌다.
              && (!('imageUrls' in request.resource.data)
                  || (request.resource.data.imageUrls is list
-                     && request.resource.data.imageUrls.size() <= 9));
+                     && request.resource.data.imageUrls.size() == 0));
     }
 
     match /posts/{postId} {

@@ -223,6 +223,13 @@ describe('stripMarkdown', () => {
     assert.equal(stripMarkdown('평범한 문장'), '평범한 문장');
     assert.equal(stripMarkdown('[자세히 보기](http://place.map.kakao.com/123)는 여기'), '자세히 보기는 여기');
   });
+
+  it('기울임·밑줄 굵게를 벗기고, 스네이크_케이스는 건드리지 않는다', () => {
+    assert.equal(stripMarkdown('*기울임*'), '기울임');
+    assert.equal(stripMarkdown('__굵게__'), '굵게');
+    assert.equal(stripMarkdown('**굵게** 와 *기울임* 혼용'), '굵게 와 기울임 혼용');
+    assert.equal(stripMarkdown('place_id 같은 스네이크_케이스'), 'place_id 같은 스네이크_케이스');
+  });
 });
 
 describe('runToolLoop', () => {

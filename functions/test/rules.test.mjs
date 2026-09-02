@@ -88,6 +88,18 @@ describe('users', () => {
     await assertSucceeds(setDoc(doc(dave, 'users', 'dave'), base));
   });
 
+  // 앱의 signUp 이 쓰는 여섯 필드가 전부다. 여분 필드는 문서를 부풀리는 통로가 된다.
+  it('가입 요청에 없는 필드를 끼워 넣을 수 없다', async () => {
+    const six = {
+      email: 'e@example.com', nickname: '여섯', ticketBalance: 0, ticketsIssued: 0,
+      placesVisited: 0, createdAt: serverTimestamp(),
+    };
+    const erin = env.authenticatedContext('erin').firestore();
+    await assertFails(setDoc(doc(erin, 'users', 'erin'), { ...six, admin: true }));
+    await assertFails(setDoc(doc(erin, 'users', 'erin'), { ...six, junk: 'x' }));
+    await assertSucceeds(setDoc(doc(erin, 'users', 'erin'), six));
+  });
+
   it('편집 가능한 여섯 필드는 통과', async () => {
     await assertSucceeds(updateDoc(doc(carol(), 'users', CAROL), {
       nickname: 'A', avatarUrl: 'u', bio: 'b', followedArtistIds: ['x'],
@@ -232,10 +244,15 @@ describe('나머지', () => {
     await assertFails(setDoc(doc(eve, 'posts', 'p7'), post({ authorId: 'eve', authorNickname: '이브' })));
   });
 
-  it('본문·이미지 개수에 상한이 있다', async () => {
+  it('본문에 상한이 있고, imageUrls 는 빈 목록으로 못 박혀 있다', async () => {
     await assertFails(setDoc(doc(alice(), 'posts', 'p8'), post({ body: 'x'.repeat(5001) })));
-    await assertFails(setDoc(doc(alice(), 'posts', 'p9'), post({ imageUrls: Array(10).fill('u') })));
-    await assertSucceeds(setDoc(doc(alice(), 'posts', 'p10'), post({ imageUrls: Array(9).fill('u') })));
+    // 규칙은 리스트 원소를 볼 수 없다 — 하나라도 담기면 외부 주소가 피드에 실린다.
+    await assertFails(setDoc(doc(alice(), 'posts', 'p9'),
+      post({ imageUrls: ['https://evil.example/pixel.png'] })));
+    await assertFails(setDoc(doc(alice(), 'posts', 'p10'), post({ imageUrls: Array(9).fill('u') })));
+    await assertSucceeds(setDoc(doc(alice(), 'posts', 'p12'), post({ imageUrls: [] })));
+    const { imageUrls, ...noImages } = post();
+    await assertSucceeds(setDoc(doc(alice(), 'posts', 'p13'), noImages));
   });
 
   it('update 로 상한을 우회할 수 없다', async () => {
