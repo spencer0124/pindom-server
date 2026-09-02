@@ -59,15 +59,23 @@ before(async () => {
     await setDoc(doc(db, 'tickets', 'tA2'), { userId: ALICE, placeId: PLACE, visibility: 'public', serial: 'PD-2' });
     await setDoc(doc(db, 'tickets', 'tA3'), { userId: ALICE, placeId: OTHER_PLACE, visibility: 'private', serial: 'PD-3' });
     await setDoc(doc(db, 'tickets', 'tB1'), { userId: BOB, placeId: PLACE, visibility: 'private', serial: 'PD-4' });
+    // 리뷰 문서 id 는 ticketId 다 — 케이스마다 다른 티켓이 필요하다. 같은 id 에 두 번 쓰면
+    // 두 번째는 create 가 아니라 update 로 심사되어 검증하려던 조건을 지나쳐 버린다.
+    for (const n of [4, 5, 6, 7, 8, 9]) {
+      await setDoc(doc(db, 'tickets', `tA${n}`), { userId: ALICE, placeId: PLACE, visibility: 'private', serial: `PD-A${n}` });
+    }
+    await setDoc(doc(db, 'tickets', 'tB2'), { userId: BOB, placeId: PLACE, visibility: 'private', serial: 'PD-5' });
+    await setDoc(doc(db, 'tickets', 'tB3'), { userId: BOB, placeId: PLACE, visibility: 'private', serial: 'PD-6' });
     await setDoc(doc(db, 'boards', BOARD), { kind: 'free', name: { ko: '자유게시판', en: 'Free Board' }, order: 0, archived: false });
   });
 });
 
 after(async () => { await env.cleanup(); });
 
-const review = (over = {}) => ({
+// ticketId 는 문서 id 와 같아야 한다 — 규칙이 그 티켓을 읽어 소유자와 장소를 확인한다.
+const review = (ticketId, over = {}) => ({
   authorId: ALICE, authorNickname: '앨리스', authorTier: 'club10',
-  text: '좋았어요', tags: ['조용함'], likeCount: 0, createdAt: serverTimestamp(), ...over,
+  text: '좋았어요', tags: ['조용함'], likeCount: 0, ticketId, createdAt: serverTimestamp(), ...over,
 });
 
 describe('users', () => {
@@ -152,33 +160,42 @@ describe('reviews', () => {
 
   // 앨리스에게는 tier 필드가 없다 — 앱의 signUp 이 쓰지 않기 때문이다.
   // 규칙이 기본값 club10 으로 읽어야 이 통과가 성립한다.
-  it('본인 이름으로 작성 — tier 없는 사용자, 같은 장소에 여러 개도 허용', async () => {
-    await assertSucceeds(setDoc(path(alice(), PLACE, 'r1'), review()));
-    await assertSucceeds(setDoc(path(alice(), PLACE, 'r2'), review()));
-    await assertFails(setDoc(path(alice(), PLACE, 'r0b'), review({ authorTier: 'club20' })));
+  it('본인 이름으로 작성 — tier 없는 사용자, 티켓 한 장에 팁 하나', async () => {
+    await assertSucceeds(setDoc(path(alice(), PLACE, 'tA1'), review('tA1')));
+    await assertSucceeds(setDoc(path(alice(), PLACE, 'tA2'), review('tA2')));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA4'), review('tA4', { authorTier: 'club20' })));
   });
 
   it('tier 가 있는 사용자는 그 값과 대조한다', async () => {
-    const mine = { authorId: BOB, authorNickname: '밥', authorTier: 'club20',
-      text: 't', tags: [], likeCount: 0, createdAt: serverTimestamp() };
-    await assertSucceeds(setDoc(path(bob(), PLACE, 'rb1'), mine));
-    await assertFails(setDoc(path(bob(), PLACE, 'rb2'), { ...mine, authorTier: 'club10' }));
+    const mine = (ticketId, tier) => ({ authorId: BOB, authorNickname: '밥', authorTier: tier,
+      text: 't', tags: [], likeCount: 0, ticketId, createdAt: serverTimestamp() });
+    await assertSucceeds(setDoc(path(bob(), PLACE, 'tB1'), mine('tB1', 'club20')));
+    await assertFails(setDoc(path(bob(), PLACE, 'tB2'), mine('tB2', 'club10')));
   });
 
   it('남의 이름, 등급 위조, likeCount 선점은 거부', async () => {
-    await assertFails(setDoc(path(alice(), PLACE, 'r3'), review({ authorId: BOB })));
-    await assertFails(setDoc(path(alice(), PLACE, 'r4'), review({ authorNickname: '밥' })));
-    await assertFails(setDoc(path(alice(), PLACE, 'r5'), review({ authorTier: 'clubGo' })));
-    await assertFails(setDoc(path(alice(), PLACE, 'r6'), review({ likeCount: 50 })));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA5'), review('tA5', { authorId: BOB })));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA6'), review('tA6', { authorNickname: '밥' })));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA7'), review('tA7', { authorTier: 'clubGo' })));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA8'), review('tA8', { likeCount: 50 })));
     // 미래 시각으로 목록 상단을 점유하는 것을 막는다.
-    await assertFails(setDoc(path(alice(), PLACE, 'r7'),
-      review({ createdAt: Timestamp.fromMillis(4102444800000) })));
+    await assertFails(setDoc(path(alice(), PLACE, 'tA9'),
+      review('tA9', { createdAt: Timestamp.fromMillis(4102444800000) })));
+  });
+
+  // 가본 적 없는 곳에는 팁을 못 남긴다. 증거는 문서 id 로 쓴 ticketId 하나뿐이라,
+  // 규칙이 그 티켓을 읽어 주인과 장소를 둘 다 대조해야 성립한다.
+  it('내 티켓이 아니거나, 다른 장소의 티켓이거나, 없는 티켓이면 거부', async () => {
+    await assertFails(setDoc(path(alice(), PLACE, 'tB3'), review('tB3')));            // 밥의 티켓
+    await assertFails(setDoc(path(alice(), PLACE, 'tA3'), review('tA3')));            // 다른 장소의 티켓
+    await assertFails(setDoc(path(alice(), OTHER_PLACE, 'tA3'), review('tA1')));      // 필드가 id 와 다름
+    await assertFails(setDoc(path(alice(), PLACE, 'tNope'), review('tNope')));        // 없는 티켓
   });
 
   it('수정은 본문과 태그만, 삭제는 본인만', async () => {
-    await assertSucceeds(updateDoc(path(alice(), PLACE, 'r1'), { text: '고침', tags: ['a'] }));
-    await assertFails(updateDoc(path(alice(), PLACE, 'r1'), { likeCount: 9 }));
-    await assertFails(updateDoc(path(bob(), PLACE, 'r1'), { text: '탈취' }));
+    await assertSucceeds(updateDoc(path(alice(), PLACE, 'tA1'), { text: '고침', tags: ['a'] }));
+    await assertFails(updateDoc(path(alice(), PLACE, 'tA1'), { likeCount: 9 }));
+    await assertFails(updateDoc(path(bob(), PLACE, 'tA1'), { text: '탈취' }));
   });
 });
 
