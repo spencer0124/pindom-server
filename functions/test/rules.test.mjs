@@ -351,6 +351,14 @@ describe('storage', () => {
     await assertFails(deleteObject(ref(mine, `posts/${BOB}/b.jpg`)));
   });
 
+  it('아바타도 본인 경로의 이미지만 올릴 수 있다', async () => {
+    const bytes = new Uint8Array(8);
+    const mine = env.authenticatedContext(ALICE).storage();
+    await assertSucceeds(uploadBytes(ref(mine, `avatars/${ALICE}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
+    await assertFails(uploadBytes(ref(mine, `avatars/${BOB}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
+    await assertFails(uploadBytes(ref(mine, `avatars/${ALICE}/a.txt`), bytes, { contentType: 'text/plain' }));
+  });
+
   it('남의 폴더를 훑을 수 없음 — list 는 닫혀 있다', async () => {
     const mine = env.authenticatedContext(ALICE).storage();
     await assertFails(listAll(ref(mine, `tickets/${BOB}`)));

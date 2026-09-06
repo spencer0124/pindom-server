@@ -27,11 +27,14 @@ service firebase.storage {
     //
     // 삭제는 write 에서 떼어낸다. 삭제 요청에는 request.resource 가 없어 ownedImage() 가
     // 평가 예외로 끝나고, 그러면 게시글을 지워도 이미지가 남는다.
+    //
+    // avatars/{uid}/ 는 앨범에서 고른 프로필 사진이다. 소유·용량 규칙은 같고, 프로필 자체가
+    // 공개이므로 로그인한 사용자면 누구나 읽는다.
     match /{folder}/{uid}/{fileName} {
-      allow get: if folder in ['tickets', 'posts'] && request.auth != null;
+      allow get: if folder in ['tickets', 'posts', 'avatars'] && request.auth != null;
       allow list: if false;
-      allow create, update: if folder in ['tickets', 'posts'] && ownedImage(uid);
-      allow delete: if folder in ['tickets', 'posts'] && request.auth.uid == uid;
+      allow create, update: if folder in ['tickets', 'posts', 'avatars'] && ownedImage(uid);
+      allow delete: if folder in ['tickets', 'posts', 'avatars'] && request.auth.uid == uid;
     }
 
     match /{allPaths=**} {
