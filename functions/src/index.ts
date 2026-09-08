@@ -1428,7 +1428,10 @@ export const deleteAccount = onCall(async (req) => {
   return { deletedDocs: refs.length + 1 };
 });
 
-/** Public profile projection; never expose the private users document/email. */
+/**
+ * Public profile projection: the public half of someone's roll — the places they proved they
+ * went and the photos they chose to show — never the email, never the private tickets.
+ */
 export const getPublicProfile = onCall(async (req) => {
   const uid = requireVerifiedUid(req);
   const userId = docId((req.data ?? {}) as Data, 'userId');
@@ -1442,6 +1445,14 @@ export const getPublicProfile = onCall(async (req) => {
   if (userId !== uid && user.profileVisibility === 'private') {
     throw new HttpsError('permission-denied', '비공개 프로필이다');
   }
+  // 남의 tickets 쿼리는 규칙이 막는다 — 공개 티켓을 보여줄 문은 여기뿐이다.
+  const tickets = await db.collection('tickets')
+    .where('userId', '==', userId)
+    .where('visibility', '==', 'public')
+    .orderBy('issuedAt', 'desc')
+    .limit(30)
+    .get();
+
   return {
     userId,
     nickname: String(user.nickname ?? ''),
@@ -1450,5 +1461,17 @@ export const getPublicProfile = onCall(async (req) => {
     ticketsIssued: Number(user.ticketsIssued ?? 0),
     placesVisited: Number(user.placesVisited ?? 0),
     tier: String(user.tier ?? 'club10'),
+    tickets: tickets.docs.map((d) => {
+      const t = d.data() as Data;
+      const artistId = typeof t.artistId === 'string' ? t.artistId : '';
+      return {
+        ticketId: d.id,
+        placeId: String(t.placeId ?? ''),
+        placeName: String(t.placeName ?? ''),
+        photoUrl: typeof t.photoUrl === 'string' ? t.photoUrl : '',
+        issuedAt: (t.issuedAt as Timestamp | undefined)?.toDate().toISOString() ?? '',
+        ...(artistId && { artistId }),
+      };
+    }),
   };
 });

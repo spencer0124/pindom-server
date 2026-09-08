@@ -513,3 +513,102 @@ describe('concurrent ticket issuance', () => {
     } finally { await deleteApp(app); }
   });
 });
+
+
+// 남의 users 문서도, 남의 tickets 쿼리도 규칙이 막는다. 공개 프로필의 촬영지와 사진은
+// 이 콜러블을 통해서만 나온다 — 그래서 무엇이 나오고 무엇이 안 나오는지가 곧 계약이다.
+describe('getPublicProfile', () => {
+  const OTHER = 'public-profile-owner';
+  const HIDDEN = 'private-profile-owner';
+  const seedTicket = async (seed, userId, over) => {
+    const ref = doc(collection(seed, 'tickets'));
+    await setDoc(ref, {
+      userId, placeId: PLACE, placeName: '주문진 방파제',
+      photoPath: `tickets/${userId}/photo.jpg`, photoUrl: `https://x/${ref.id}`,
+      serial: 'PD-PUB0-PUB0-PUB0', spent: false, ...over,
+    });
+    return ref.id;
+  };
+  let newer;
+  let older;
+  let hiddenTicket;
+
+  before(async () => {
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      const seed = ctx.firestore();
+      await setDoc(doc(seed, 'users', OTHER), {
+        email: 'other@example.com', nickname: '공개',
+        ticketsIssued: 3, placesVisited: 2, tier: 'club10',
+      });
+      older = await seedTicket(seed, OTHER, {
+        visibility: 'public', artistId: 'artist1',
+        issuedAt: Timestamp.fromMillis(Date.now() - 86_400_000),
+      });
+      newer = await seedTicket(seed, OTHER, {
+        visibility: 'public', issuedAt: Timestamp.now(),
+      });
+      await seedTicket(seed, OTHER, {
+        visibility: 'private', issuedAt: Timestamp.now(),
+      });
+
+      await setDoc(doc(seed, 'users', HIDDEN), {
+        email: 'hidden@example.com', nickname: '비공개',
+        profileVisibility: 'private', ticketsIssued: 1, placesVisited: 1,
+      });
+      hiddenTicket = await seedTicket(seed, HIDDEN, {
+        visibility: 'public', issuedAt: Timestamp.now(),
+      });
+    });
+  });
+
+  it('공개 티켓만 돌려준다 — 비공개 티켓도 이메일도 나오지 않는다', async () => {
+    const res = await invoke('getPublicProfile', { userId: OTHER });
+    assert.equal(res.nickname, '공개');
+    assert.equal(res.email, undefined);
+    assert.deepEqual(res.tickets.map((t) => t.ticketId).sort(), [newer, older].sort());
+    const one = res.tickets.find((t) => t.ticketId === older);
+    assert.equal(one.placeId, PLACE);
+    assert.equal(one.placeName, '주문진 방파제');
+    assert.equal(one.photoUrl, `https://x/${older}`);
+    assert.equal(one.artistId, 'artist1');
+    // artistId 없는 티켓에는 키 자체가 붙지 않는다.
+    assert.equal('artistId' in res.tickets.find((t) => t.ticketId === newer), false);
+  });
+
+  it('최신순으로 준다 — issuedAt 은 ISO 문자열이다', async () => {
+    const res = await invoke('getPublicProfile', { userId: OTHER });
+    assert.deepEqual(res.tickets.map((t) => t.ticketId), [newer, older]);
+    assert.ok(Date.parse(res.tickets[0].issuedAt) > Date.parse(res.tickets[1].issuedAt));
+  });
+
+  it('비공개 프로필은 남에게 permission-denied — 티켓도 함께 막힌다', async () => {
+    assert.equal(
+      await errorCode(invoke('getPublicProfile', { userId: HIDDEN })),
+      'functions/permission-denied',
+    );
+  });
+
+  it('비공개 프로필도 본인에게는 티켓까지 열린다', async () => {
+    const app = initializeApp(
+      { apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com` },
+      'private-profile-test',
+    );
+    try {
+      const auth = getAuth(app);
+      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      const fns = getFunctions(app, 'asia-northeast3');
+      connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+      const account = await createUserWithEmailAndPassword(auth, 'hidden@example.com', 'pw1234');
+      // 콜러블은 uid 로 본인을 판단한다. 시드 문서를 그 uid 로 옮겨 놓는다.
+      await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+        const seed = ctx.firestore();
+        const user = await getDoc(doc(seed, 'users', HIDDEN));
+        await setDoc(doc(seed, 'users', account.user.uid), user.data());
+        await setDoc(doc(seed, 'tickets', hiddenTicket), { userId: account.user.uid }, { merge: true });
+      });
+      const res = (await httpsCallable(fns, 'getPublicProfile')({ userId: account.user.uid })).data;
+      assert.equal(res.nickname, '비공개');
+      assert.deepEqual(res.tickets.map((t) => t.ticketId), [hiddenTicket]);
+    } finally { await deleteApp(app); }
+  });
+});
