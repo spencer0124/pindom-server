@@ -54,7 +54,7 @@ Cloud Functions 런타임은 Node 22다. 로컬 Node 버전이 다르면 빌드�
 | --- | --- | --- |
 | Firestore 위치 | `asia-northeast3` (서울) | 생성 시 확정, 변경 불가 |
 | Functions 리전 | `asia-northeast3` | 앱은 `getFunctions(app, 'asia-northeast3')` 로 호출 |
-| 함수 개수 | 3개 (`verifyLocation`·`issueTicket`·`enterRaffle`) | 나머지는 규칙으로 처리 |
+| 함수 목록 | `functions/src/index.ts`의 exports | 인증·발행·응모·추천·관리·동기화·탈퇴 |
 | 게시판 문서 id | 아이돌 게시판은 `artistId`, 자유게시판은 `free` | 계약서의 `posts.boardId` = `artistId` 를 아이돌 게시판에 한해 그대로 유지한다 |
 | 게시판 삭제 | 없다. `archived` 로 내린다 | 글이 `boardId` 로 게시판을 가리킨다. 지우면 그 글들이 없는 게시판에 매달린다 |
 | `maxInstances` | 10 | App Check 이 없고 함수 URL 은 공개다. 폭주가 그대로 청구서가 되는 것을 막는다 |

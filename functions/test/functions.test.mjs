@@ -16,7 +16,7 @@ import {
   Timestamp, collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore, setDoc,
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
-import { connectStorageEmulator, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { connectStorageEmulator, getMetadata, getStorage, ref, uploadBytes } from 'firebase/storage';
 
 const PROJECT = 'pindom-fn-test';
 const PLACE = 'jumunjin';
@@ -176,14 +176,21 @@ describe('issueTicket', () => {
     assert.equal(user.placesVisited, 1);   // 첫 방문
   });
 
-  it('같은 그랜트를 다시 쓰면 grant_consumed — 인증 한 번에 티켓 한 장', async () => {
-    assert.ok(usedGrant, '앞 테스트가 먼저 돌아야 한다');
-    assert.equal(
-      await errorCode(invoke('issueTicket', {
-        grantToken: usedGrant, photoPath: `tickets/${uid}/photo.jpg`, visibility: 'private',
-      })),
-      'grant_consumed',
-    );
+  it('응답을 잃어 같은 그랜트를 재전송해도 발행 결과는 같고 카운터는 한 번만 증가한다', async () => {
+    const before = await seedRead(`users/${uid}`);
+    const results = await Promise.all(Array.from({ length: 3 }, () => invoke('issueTicket', {
+      grantToken: usedGrant, photoPath: `tickets/${uid}/photo.jpg`, visibility: 'private',
+    })));
+    const session = await seedRead(`verificationSessions/${usedGrant}`);
+    for (const result of results) assert.deepEqual(result, session.issueResult);
+    const after = await seedRead(`users/${uid}`);
+    assert.equal(after.ticketsIssued, before.ticketsIssued);
+    assert.equal(after.ticketBalance, before.ticketBalance);
+  });
+
+  it('소비된 인증 세션을 재인증해서 되살릴 수 없다', async () => {
+    assert.equal(await errorCode(invoke('verifyLocation', reading({ sessionId: usedGrant }))), 'grant_consumed');
+    assert.equal((await seedRead(`verificationSessions/${usedGrant}`)).status, 'consumed');
   });
 
   it('30일 쿨다운 안이면 cooldown_active 와 다음 가능 날짜', async () => {
@@ -254,8 +261,7 @@ async function seedRead(path) {
   return data;
 }
 
-// 도착 검사(직전 티켓 대비 300km/h)는 세션당 한 번만 돈다. 그 "한 번" 을 거부 응답으로
-// 소모시킬 수 있으면 게이트가 통째로 무력해진다. 티켓이 있어야 성립해서 맨 뒤에 둔다.
+// 도착 검사(직전 티켓 대비 300km/h)는 매번 판정한다. 재시도로 거부를 소모할 수 없어야 한다.
 //
 // 우선순위는 accuracy → radius → 세션 내 이동속도 → 도착 검사 순이다. 도착 검사가 먼저
 // 돌면 부정확하거나 반경 밖인 평범한 상황까지 "위치 조작이 의심된다" 로 답하게 되고,
@@ -321,12 +327,12 @@ describe('도착 검사', () => {
     assert.equal(second.reason, 'implausible_speed');
   });
 
-  it('도착 검사가 실제로 판정을 내린 뒤에는 같은 세션에서 다시 돌지 않는다', async () => {
+  it('이동속도 거부 뒤 같은 세션으로 재시도해도 거부된다', async () => {
     const first = await invoke('verifyLocation', reading());
     assert.equal(first.reason, 'implausible_speed');
     const second = await invoke('verifyLocation', reading({ sessionId: first.sessionId }));
-    // 첫 호출에서 도착 검사가 실제로 거부를 결정했으니 여기서는 소모된 게 맞다.
-    assert.equal(second.verified, true);
+    assert.equal(second.verified, false);
+    assert.equal(second.reason, 'implausible_speed');
   });
 });
 
@@ -445,5 +451,65 @@ describe('saveBoard', () => {
       }),
     );
     assert.equal(code, 'functions/permission-denied');
+  });
+});
+
+
+describe('deleteAccount storage cleanup', () => {
+  it('탈퇴하면 프로필 사진도 삭제한다', async () => {
+    const app = initializeApp({ apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com` }, 'delete-account-test');
+    try {
+      const auth = getAuth(app);
+      const storage = getStorage(app);
+      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      connectStorageEmulator(storage, '127.0.0.1', 9199);
+      const fns = getFunctions(app, 'asia-northeast3');
+      connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+      const account = await createUserWithEmailAndPassword(auth, 'delete@example.com', 'pw1234');
+      const path = `avatars/${account.user.uid}/profile.jpg`;
+      await uploadBytes(ref(storage, path), new Uint8Array(8), { contentType: 'image/jpeg' });
+      await httpsCallable(fns, 'deleteAccount')({});
+      // Use an emulator-only privileged storage context; deleted auth must not
+      // turn the assertion into an unrelated permission failure.
+      const storageEnv = await initializeTestEnvironment({ projectId: PROJECT, storage: { host: '127.0.0.1', port: 9199 } });
+      try {
+        await storageEnv.withSecurityRulesDisabled(async (ctx) => {
+          await assert.rejects(getMetadata(ref(ctx.storage(), path)), (error) => error.code === 'storage/object-not-found');
+        });
+      } finally { await storageEnv.cleanup(); }
+    } finally { await deleteApp(app); }
+  });
+});
+
+
+describe('concurrent ticket issuance', () => {
+  it('동시에 처음 발행해도 하나의 티켓과 같은 결과만 생성한다', async () => {
+    const app = initializeApp({ apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com` }, 'parallel-ticket-test');
+    try {
+      const auth = getAuth(app);
+      const storage = getStorage(app);
+      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      connectStorageEmulator(storage, '127.0.0.1', 9199);
+      const fns = getFunctions(app, 'asia-northeast3');
+      connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+      const account = await createUserWithEmailAndPassword(auth, 'parallel@example.com', 'pw1234');
+      const userId = account.user.uid;
+      const grantToken = 'parallel-grant';
+      await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await setDoc(doc(db, 'users', userId), { nickname: '동시성', ticketBalance: 0, ticketsIssued: 0, placesVisited: 0 });
+        await setDoc(doc(db, 'verificationSessions', grantToken), { userId, placeId: PLACE, status: 'verified', grantExpiresAt: Timestamp.fromMillis(Date.now() + 600_000) });
+      });
+      const photoPath = `tickets/${userId}/parallel.jpg`;
+      await uploadBytes(ref(storage, photoPath), new Uint8Array(8), { contentType: 'image/jpeg' });
+      const results = await Promise.all(Array.from({ length: 3 }, async () => (await httpsCallable(fns, 'issueTicket')({ grantToken, photoPath, visibility: 'private' })).data));
+      results.forEach((result) => assert.deepEqual(result, results[0]));
+      const user = await seedRead(`users/${userId}`);
+      assert.equal(user.ticketBalance, 1);
+      assert.equal(user.ticketsIssued, 1);
+      assert.equal(user.placesVisited, 1);
+      // A different caller cannot obtain even the stored result.
+      assert.equal(await errorCode(invoke('issueTicket', { grantToken, photoPath, visibility: 'private' })), 'grant_expired');
+    } finally { await deleteApp(app); }
   });
 });

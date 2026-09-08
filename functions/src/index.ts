@@ -248,32 +248,23 @@ export const verifyLocation = onCall(async (req) => {
     : db.collection('verificationSessions').doc();
 
   let readings: Reading[] = [];
-  let arrivalChecked = false;
   if (sessionId) {
     const snap = await sessionRef.get();
     const session = snap.data();
     if (!session) throw new HttpsError('not-found', '없는 세션이다');
     if (session.userId !== uid) throw new HttpsError('permission-denied', '남의 세션이다');
+    if (session.status === 'consumed') throw precondition('grant_consumed');
     if (session.placeId !== placeId) {
       throw new HttpsError('invalid-argument', '세션의 장소와 다르다');
     }
     readings = (session.readings as Reading[] | undefined) ?? [];
-    arrivalChecked = session.arrivalChecked === true;
   }
 
-  // 도착 검사(직전 티켓에서 여기까지 낼 수 있는 속도인가)는 세션당 정확히 한 번만 세운다.
-  // isMock·poor_accuracy·out_of_radius 로 먼저 거부되는 호출에서 계산해 버리면, 그 결과를
-  // 쓰지도 않은 채 arrivalChecked 만 true 로 남아 실제 속도 검사가 영원히 건너뛰어진다 —
-  // 세션 문서를 만들면서 sessionId 를 돌려주므로 공격자는 accuracy 를 일부러 나쁘게 보내
-  // "체크됨" 도장만 받고, 다음 호출에서 진짜 좌표로 검사를 피해 갈 수 있었다. 그래서 이
-  // 검사는 그 결과가 실제로 최종 판정(거부든 통과든)을 결정하는 지점에서만 계산하고 세션에
-  // 박는다 — 그 앞의 accuracy·radius·세션 내 속도 검사가 전부 통과한 뒤.
-  const arrivalCheckedNow = !arrivalChecked;
-
-  const reject = async (reason: string, append: boolean, checksArrival = false) => {
+  // Repeat the previous-ticket speed check on every otherwise valid reading.
+  // Caching that it was checked also cached refusals as permission to bypass it.
+  const reject = async (reason: string, append: boolean) => {
     await writeSession(
       sessionRef, uid, placeId, readings, append ? newReading() : undefined, null,
-      checksArrival && arrivalCheckedNow,
     );
     return {
       sessionId: sessionRef.id,
@@ -308,18 +299,11 @@ export const verifyLocation = onCall(async (req) => {
     }
   }
 
-  // 앞의 accuracy·radius·세션 내 속도 검사를 전부 통과한 뒤에야 계산한다 — 여기 도달한
-  // 호출만 이 판정을 최종 결과로 쓰고, arrivalChecked 도 이 시점에만 세션에 박힌다.
-  const arrivalImplausible = arrivalCheckedNow && (await jumpedFromLastTicket(uid, { lat, lng }, capturedAt));
-  if (arrivalImplausible) return reject('implausible_speed', true, true);
+  const arrivalImplausible = await jumpedFromLastTicket(uid, { lat, lng }, capturedAt);
+  if (arrivalImplausible) return reject('implausible_speed', true);
 
   const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);
-  await Promise.all([
-    writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt, arrivalCheckedNow),
-    // 장소/상세의 방문 인증 수. issueTicket 은 여기를 손대지 않는다 — 그랜트를 받고도
-    // 티켓을 안 받을 수 있고, 이 숫자는 "여기 실제로 온 사람" 이지 발행 수가 아니다.
-    placeSnap.ref.update({ verifyCount: FieldValue.increment(1) }),
-  ]);
+  await writeSession(sessionRef, uid, placeId, readings, newReading(), grantExpiresAt);
 
   return {
     sessionId: sessionRef.id,
@@ -340,19 +324,18 @@ async function writeSession(
   existing: Reading[],
   append: Reading | undefined,
   grantExpiresAt: Timestamp | null,
-  arrivalChecked = false,
 ): Promise<void> {
   const readings = append ? [...existing, append].slice(-MAX_READINGS) : existing;
   const startedAt = Timestamp.now();
-  await ref.set(
-    {
+  await db.runTransaction(async (tx) => {
+    const current = (await tx.get(ref)).data();
+    // A verification request that started before issueTicket committed must
+    // never restore a consumed grant to verified or discard its replay result.
+    if (current?.status === 'consumed') throw precondition('grant_consumed');
+    tx.set(ref, {
       userId: uid,
       placeId,
       readings,
-      // 이 판정이 실제로 도착 검사를 최종 결과로 썼을 때만 true 로 박는다 — 그래야 다음
-      // 호출이 진짜로 건너뛰어도 되는지 안다. merge:true 라 false 일 땐 필드를 안 건드려
-      // 기존에 세워진 true 를 실수로 되돌리지 않는다.
-      ...(arrivalChecked && { arrivalChecked: true }),
       status: grantExpiresAt ? 'verified' : 'active',
       ...(grantExpiresAt && { grantExpiresAt }),
       // TTL 정책이 지우는 필드. grantExpiresAt 은 실패한 세션에 없어서 이 역할을 못 한다.
@@ -361,8 +344,9 @@ async function writeSession(
         expiresAt: Timestamp.fromMillis(startedAt.toMillis() + 24 * 60 * 60 * 1000),
       }),
     },
-    { merge: true },
-  );
+    { merge: true });
+    if (grantExpiresAt) tx.update(db.doc(`places/${placeId}`), { verifyCount: FieldValue.increment(1) });
+  });
 }
 
 /** 직전에 티켓을 받은 장소에서 여기까지, 사람이 갈 수 있는 속도였는가. */
@@ -408,6 +392,8 @@ export const issueTicket = onCall(async (req) => {
   // 성질이 무너진다. 바깥 확인은 placeId 를 얻고 실패를 일찍 돌려주기 위한 것이다.
   const sessionRef = db.doc(`verificationSessions/${grantToken}`);
   const session = (await sessionRef.get()).data();
+  const previousResult = issuedResult(session, uid);
+  if (previousResult) return previousResult;
   checkGrant(session, uid);
   const placeId = session!.placeId as string;
 
@@ -432,10 +418,12 @@ export const issueTicket = onCall(async (req) => {
     .orderBy('issuedAt', 'desc')
     .limit(1);
 
-  const { ticketBalance, tier } = await db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx) => {
     const [sessionSnap, userSnap, placeSnap, previousSnap] = await Promise.all([
       tx.get(sessionRef), tx.get(userRef), tx.get(placeRef), tx.get(previousQuery),
     ]);
+    const committedResult = issuedResult(sessionSnap.data(), uid);
+    if (committedResult) return committedResult;
     checkGrant(sessionSnap.data(), uid);
 
     const lastIssuedAt = (previousSnap.docs[0]?.data().issuedAt as Timestamp | undefined)?.toDate();
@@ -499,12 +487,17 @@ export const issueTicket = onCall(async (req) => {
       });
     }
 
-    tx.update(sessionRef, { status: 'consumed' });
-    return { ticketBalance: balance, tier: nextTier };
+    const result = { ticketId: ticketRef.id, serial, ticketBalance: balance, tier: nextTier };
+    tx.update(sessionRef, { status: 'consumed', issueResult: result });
+    return result;
   });
-
-  return { ticketId: ticketRef.id, serial, ticketBalance, tier };
 });
+
+/** A lost response can be retried with the same grant, without minting again. */
+function issuedResult(session: FirebaseFirestore.DocumentData | undefined, uid: string) {
+  if (!session || session.userId !== uid || session.status !== 'consumed') return null;
+  return session.issueResult as { ticketId: string; serial: string; ticketBalance: number; tier: string } | undefined;
+}
 
 /** 그랜트가 이 호출자 것이고, 아직 살아 있고, 쓰이지 않았는가. */
 function checkGrant(session: FirebaseFirestore.DocumentData | undefined, uid: string): void {
@@ -1423,11 +1416,12 @@ export const deleteAccount = onCall(async (req) => {
     db.doc(`rateLimits/${uid}`).delete(),
   ]);
 
-  // 사진 원본. storage.rules 가 tickets/{uid}/ 와 posts/{uid}/ 둘만 허용한다.
+  // 업로드 가능한 모든 사용자 폴더를 함께 지운다 — 프로필 사진도 개인 데이터다.
   const bucket = getStorage().bucket();
   await Promise.all([
     bucket.deleteFiles({ prefix: `tickets/${uid}/` }),
     bucket.deleteFiles({ prefix: `posts/${uid}/` }),
+    bucket.deleteFiles({ prefix: `avatars/${uid}/` }),
   ]);
 
   await getAuth().deleteUser(uid);

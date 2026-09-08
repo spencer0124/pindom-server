@@ -18,20 +18,14 @@ service firebase.storage {
              && request.resource.size < 10 * 1024 * 1024;
     }
 
-    // 파일 하나 읽기는 로그인 사용자 전체 — 티켓 사진은 갤러리에, 게시글 사진은 피드에
-    // 공개되고 앱은 URL 을 문서에서 읽어온다.
-    //
-    // 목록 조회(list)는 닫는다. Storage 에서 read 는 get 과 list 를 함께 뜻하므로 열어두면
-    // 누구나 tickets/{남의 uid}/ 를 훑어 비공개 티켓 사진까지 꺼낼 수 있다. 앱은 경로를
-    // 나열할 일이 없다.
-    //
-    // 삭제는 write 에서 떼어낸다. 삭제 요청에는 request.resource 가 없어 ownedImage() 가
-    // 평가 예외로 끝나고, 그러면 게시글을 지워도 이미지가 남는다.
-    //
-    // avatars/{uid}/ 는 앨범에서 고른 프로필 사진이다. 소유·용량 규칙은 같고, 프로필 자체가
-    // 공개이므로 로그인한 사용자면 누구나 읽는다.
+    // 티켓의 SDK 읽기는 소유자만 허용한다. 다른 사람은 갤러리가 제공하는 공개
+    // 다운로드 URL 로 읽는다. 경로를 안다는 이유로 새 다운로드 토큰까지 가져갈
+    // 수 있으면 공개→비공개 전환에서 토큰을 회전해도 보호되지 않는다.
+    // 목록 조회는 모든 폴더에서 닫는다.
     match /{folder}/{uid}/{fileName} {
-      allow get: if folder in ['tickets', 'posts', 'avatars'] && request.auth != null;
+      allow get: if request.auth != null
+                 && ((folder == 'tickets' && request.auth.uid == uid)
+                     || folder in ['posts', 'avatars']);
       allow list: if false;
       allow create, update: if folder in ['tickets', 'posts', 'avatars'] && ownedImage(uid);
       allow delete: if folder in ['tickets', 'posts', 'avatars'] && request.auth.uid == uid;

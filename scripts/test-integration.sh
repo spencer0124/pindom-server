@@ -14,5 +14,7 @@ if ! command -v java >/dev/null 2>&1; then
   exit 1
 fi
 
+npm --prefix functions run build
+
 exec npx firebase emulators:exec --project pindom-fn-test --only auth,firestore,storage,functions \
   "node --test functions/test/*.test.mjs"

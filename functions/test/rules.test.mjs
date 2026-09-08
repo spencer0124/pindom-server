@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import {
   Timestamp, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
-import { deleteObject, listAll, ref, uploadBytes } from 'firebase/storage';
+import { deleteObject, getDownloadURL, listAll, ref, uploadBytes } from 'firebase/storage';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -357,6 +357,16 @@ describe('storage', () => {
     await assertSucceeds(uploadBytes(ref(mine, `avatars/${ALICE}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
     await assertFails(uploadBytes(ref(mine, `avatars/${BOB}/a.jpg`), bytes, { contentType: 'image/jpeg' }));
     await assertFails(uploadBytes(ref(mine, `avatars/${ALICE}/a.txt`), bytes, { contentType: 'text/plain' }));
+  });
+
+  it('티켓 경로를 알아도 타인의 다운로드 토큰을 가져올 수 없다', async () => {
+    const mine = env.authenticatedContext(ALICE).storage();
+    const other = env.authenticatedContext(BOB).storage();
+    await assertSucceeds(uploadBytes(ref(mine, `tickets/${ALICE}/private.jpg`), new Uint8Array(8), { contentType: 'image/jpeg' }));
+    await assertSucceeds(getDownloadURL(ref(mine, `tickets/${ALICE}/private.jpg`)));
+    await assertFails(getDownloadURL(ref(other, `tickets/${ALICE}/private.jpg`)));
+    await assertFails(getDownloadURL(ref(env.unauthenticatedContext().storage(), `tickets/${ALICE}/private.jpg`)));
+    await assertSucceeds(getDownloadURL(ref(other, `avatars/${ALICE}/a.jpg`)));
   });
 
   it('남의 폴더를 훑을 수 없음 — list 는 닫혀 있다', async () => {
