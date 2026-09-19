@@ -212,24 +212,9 @@ export const verifyLocation = onCall(async (req) => {
   const data = (req.data ?? {}) as Data;
 
   const placeId = docId(data, 'placeId');
-  const lat = num(data, 'lat');
-  const lng = num(data, 'lng');
-  const accuracy = num(data, 'accuracy');
-  const capturedAt = new Date(str(data, 'capturedAt'));
-  if (Number.isNaN(capturedAt.getTime())) {
-    throw new HttpsError('invalid-argument', 'capturedAt 이 ISO 8601 이 아니다');
-  }
-  // 시각은 클라이언트가 보낸 값이라 속도 계산의 분모다. 과거 시각을 넣으면 어떤 이동도
-  // 느려 보여 속도 검사가 통째로 무력해진다. 서버 시각에서 멀면 받지 않는다.
-  if (Math.abs(Date.now() - capturedAt.getTime()) > CLOCK_SKEW_MIN * 60 * 1000) {
-    throw new HttpsError('invalid-argument', 'capturedAt 이 서버 시각과 너무 멀다');
-  }
-  const isMock = data.isMock === true;
   const sessionId = typeof data.sessionId === 'string' ? docId(data, 'sessionId') : undefined;
 
-  // 상한은 입력 검증 다음, 읽기·쓰기 앞이다. 형식이 틀린 요청은 한도를 깎지 않지만,
-  // 세션 문서는 실패해도 생기고 verifyCount 는 성공할 때마다 늘어서, 문서를 읽거나 쓰는
-  // 경로는 하나도 빠짐없이 이 상한 뒤에 둔다 — 아니면 반복 호출만으로 둘 다 부풀릴 수 있다.
+  // Even camera tests remain authenticated and rate limited before database reads.
   await consumeDailyQuota(
     uid, 'verify', VERIFY_DAILY_LIMIT, 'verify_daily_limit', '오늘 인증 시도 한도를 다 썼다',
   );
@@ -237,11 +222,9 @@ export const verifyLocation = onCall(async (req) => {
   // 기준 좌표는 반드시 서버가 가진 값이다. 클라이언트가 보낸 좌표는 판정 대상일 뿐이다.
   const placeSnap = await db.doc(`places/${placeId}`).get();
   const place = placeSnap.data();
-  if (!place) throw new HttpsError('not-found', '없는 장소다');
+  if (!place || place.archived === true) throw new HttpsError('not-found', '없는 장소다');
   const center = place.location as GeoPoint;
   const radius = typeof place.radiusMeters === 'number' ? place.radiusMeters : DEFAULT_RADIUS_M;
-
-  const distance = effectiveDistance(distanceMeters(geo(center), { lat, lng }), accuracy);
 
   const sessionRef = sessionId
     ? db.doc(`verificationSessions/${sessionId}`)
@@ -259,6 +242,38 @@ export const verifyLocation = onCall(async (req) => {
     }
     readings = (session.readings as Reading[] | undefined) ?? [];
   }
+
+  // This switch is owned by the server-side place document, never by the caller.
+  // Older apps still submit a reading; both request shapes use the same test grant.
+  if (place.cameraTestEnabled === true) {
+    const grantExpiresAt = Timestamp.fromMillis(Date.now() + GRANT_TTL_MIN * 60 * 1000);
+    await writeSession(sessionRef, uid, placeId, readings, undefined, grantExpiresAt, true);
+    return {
+      sessionId: sessionRef.id,
+      verified: true,
+      distanceMeters: 0,
+      requiredRadiusMeters: radius,
+      accuracyMeters: 0,
+      grant: { token: sessionRef.id, expiresAt: grantExpiresAt.toDate().toISOString(), testMode: true },
+    };
+  }
+  if (data.cameraTest === true) throw precondition('camera_test_disabled');
+
+  const lat = num(data, 'lat');
+  const lng = num(data, 'lng');
+  const accuracy = num(data, 'accuracy');
+  const capturedAt = new Date(str(data, 'capturedAt'));
+  if (Number.isNaN(capturedAt.getTime())) {
+    throw new HttpsError('invalid-argument', 'capturedAt 이 ISO 8601 이 아니다');
+  }
+  // 시각은 클라이언트가 보낸 값이라 속도 계산의 분모다. 과거 시각을 넣으면 어떤 이동도
+  // 느려 보여 속도 검사가 통째로 무력해진다. 서버 시각에서 멀면 받지 않는다.
+  if (Math.abs(Date.now() - capturedAt.getTime()) > CLOCK_SKEW_MIN * 60 * 1000) {
+    throw new HttpsError('invalid-argument', 'capturedAt 이 서버 시각과 너무 멀다');
+  }
+  const isMock = data.isMock === true;
+
+  const distance = effectiveDistance(distanceMeters(geo(center), { lat, lng }), accuracy);
 
   // Repeat the previous-ticket speed check on every otherwise valid reading.
   // Caching that it was checked also cached refusals as permission to bypass it.
@@ -324,11 +339,16 @@ async function writeSession(
   existing: Reading[],
   append: Reading | undefined,
   grantExpiresAt: Timestamp | null,
+  testMode = false,
 ): Promise<void> {
   const readings = append ? [...existing, append].slice(-MAX_READINGS) : existing;
   const startedAt = Timestamp.now();
   await db.runTransaction(async (tx) => {
-    const current = (await tx.get(ref)).data();
+    const [currentSnap, placeSnap] = await Promise.all([tx.get(ref), tx.get(db.doc(`places/${placeId}`))]);
+    const current = currentSnap.data();
+    const place = placeSnap.data();
+    if (!place || place.archived === true) throw new HttpsError('not-found', '없는 장소다');
+    if (testMode && place.cameraTestEnabled !== true) throw precondition('camera_test_disabled');
     // A verification request that started before issueTicket committed must
     // never restore a consumed grant to verified or discard its replay result.
     if (current?.status === 'consumed') throw precondition('grant_consumed');
@@ -337,6 +357,7 @@ async function writeSession(
       placeId,
       readings,
       status: grantExpiresAt ? 'verified' : 'active',
+      testMode,
       ...(grantExpiresAt && { grantExpiresAt }),
       // TTL 정책이 지우는 필드. grantExpiresAt 은 실패한 세션에 없어서 이 역할을 못 한다.
       ...(existing.length === 0 && {
@@ -358,7 +379,7 @@ async function jumpedFromLastTicket(uid: string, here: LatLng, at: Date): Promis
     .limit(1)
     .get();
   const ticket = snap.docs[0]?.data();
-  if (!ticket) return false;
+  if (!ticket || ticket.testMode === true) return false;
 
   const placeSnap = await db.doc(`places/${ticket.placeId}`).get();
   const location = placeSnap.data()?.location as GeoPoint | undefined;
@@ -425,6 +446,10 @@ export const issueTicket = onCall(async (req) => {
     const committedResult = issuedResult(sessionSnap.data(), uid);
     if (committedResult) return committedResult;
     checkGrant(sessionSnap.data(), uid);
+    const place = placeSnap.data();
+    if (!place || place.archived === true) throw new HttpsError('not-found', '없는 장소다');
+    const testMode = sessionSnap.data()?.testMode === true;
+    if (testMode && place.cameraTestEnabled !== true) throw precondition('camera_test_disabled');
 
     const lastIssuedAt = (previousSnap.docs[0]?.data().issuedAt as Timestamp | undefined)?.toDate();
     const firstVisit = !lastIssuedAt;
@@ -452,6 +477,7 @@ export const issueTicket = onCall(async (req) => {
       visibility,
       issuedAt: FieldValue.serverTimestamp(),
       spent: false,
+      ...(testMode && { testMode: true }),
       ...(artistId && { artistId }),
     });
 
@@ -795,7 +821,7 @@ async function placeCoords(placeId: string): Promise<{ at: LatLng; name: string 
   if (!DOC_ID_RE.test(placeId)) throw new HttpsError('invalid-argument', `올바른 장소 id 가 아니다: ${placeId}`);
   const snap = await db.doc(`places/${placeId}`).get();
   const place = snap.data();
-  if (!place) throw new HttpsError('not-found', `없는 장소다: ${placeId}`);
+  if (!place || place.archived === true) throw new HttpsError('not-found', `없는 장소다: ${placeId}`);
   return {
     at: geo(place.location as GeoPoint),
     name: String((place.name as Data | undefined)?.ko ?? '촬영지'),
@@ -860,6 +886,7 @@ async function findFilmingSpots(
 
   const origin = coordArg(args) ?? near;
   const spots: Spot[] = snap.docs
+    .filter((d) => d.data().archived !== true)
     .map((d) => {
       const place = d.data();
       const at = geo(place.location as GeoPoint);
@@ -1470,6 +1497,7 @@ export const getPublicProfile = onCall(async (req) => {
         placeName: String(t.placeName ?? ''),
         photoUrl: typeof t.photoUrl === 'string' ? t.photoUrl : '',
         issuedAt: (t.issuedAt as Timestamp | undefined)?.toDate().toISOString() ?? '',
+        ...(t.testMode === true && { testMode: true }),
         ...(artistId && { artistId }),
       };
     }),

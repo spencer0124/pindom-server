@@ -349,8 +349,12 @@ describe('금칙어 격리', () => {
         text: '아 시발 별로였다', likeCount: 0, createdAt: Timestamp.now(),
       });
     });
-    await settle();
-
+    // Cold emulator triggers can start after the old fixed 2.5-second delay.
+    const deadline = Date.now() + 15_000;
+    while (await seedRead(`places/${PLACE}/reviews/bad-review`)) {
+      if (Date.now() >= deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
     assert.equal(await seedRead(`places/${PLACE}/reviews/bad-review`), undefined);
 
     let queued = [];
@@ -545,7 +549,7 @@ describe('getPublicProfile', () => {
         issuedAt: Timestamp.fromMillis(Date.now() - 86_400_000),
       });
       newer = await seedTicket(seed, OTHER, {
-        visibility: 'public', issuedAt: Timestamp.now(),
+        visibility: 'public', issuedAt: Timestamp.now(), testMode: true,
       });
       await seedTicket(seed, OTHER, {
         visibility: 'private', issuedAt: Timestamp.now(),
@@ -571,6 +575,8 @@ describe('getPublicProfile', () => {
     assert.equal(one.placeName, '주문진 방파제');
     assert.equal(one.photoUrl, `https://x/${older}`);
     assert.equal(one.artistId, 'artist1');
+    assert.equal(one.testMode, undefined);
+    assert.equal(res.tickets.find((t) => t.ticketId === newer).testMode, true);
     // artistId 없는 티켓에는 키 자체가 붙지 않는다.
     assert.equal('artistId' in res.tickets.find((t) => t.ticketId === newer), false);
   });
@@ -610,5 +616,110 @@ describe('getPublicProfile', () => {
       assert.equal(res.nickname, '비공개');
       assert.deepEqual(res.tickets.map((t) => t.ticketId), [hiddenTicket]);
     } finally { await deleteApp(app); }
+  });
+});
+
+describe('server-controlled camera testing and archived places', () => {
+  const OPEN = 'camera-test-open';
+  const CLOSED = 'camera-test-closed';
+  const ARCHIVED = 'camera-test-archived';
+  let app;
+  let uid;
+  let call;
+  const invoke = async (name, data) => (await httpsCallable(call, name)(data)).data;
+  const seedPlace = async (id, fields) => seedEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'places', id), {
+      name: { ko: '카메라 검증', en: 'Camera test' },
+      location: { latitude: HERE.lat, longitude: HERE.lng },
+      radiusMeters: 50, artistIds: ['artist1'], ...fields,
+    }, { merge: true });
+  });
+  before(async () => {
+    app = initializeApp({
+      apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com`,
+    }, 'camera-test-suite');
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    connectStorageEmulator(storage, '127.0.0.1', 9199);
+    call = getFunctions(app, 'asia-northeast3');
+    connectFunctionsEmulator(call, '127.0.0.1', 5001);
+    const cred = await createUserWithEmailAndPassword(auth, 'camera-test@example.com', 'pw1234');
+    uid = cred.user.uid;
+    await setDoc(doc(db, 'users', uid), {
+      email: 'camera-test@example.com', nickname: '카메라 테스트',
+      ticketBalance: 0, ticketsIssued: 0, placesVisited: 0,
+    });
+    await uploadBytes(ref(storage, `tickets/${uid}/photo.jpg`), new Uint8Array(8), {
+      contentType: 'image/jpeg',
+    });
+    await seedPlace(OPEN, { cameraTestEnabled: true });
+    await seedPlace(CLOSED, { cameraTestEnabled: false });
+    await seedPlace(ARCHIVED, { cameraTestEnabled: true, archived: true });
+  });
+  after(async () => { if (app) await deleteApp(app); });
+
+  it('opens without collecting GPS only when enabled on the server', async () => {
+    const result = await invoke('verifyLocation', { placeId: OPEN, cameraTest: true });
+    assert.equal(result.verified, true);
+    assert.equal(result.grant.testMode, true);
+    const session = await seedRead(`verificationSessions/${result.sessionId}`);
+    assert.equal(session.userId, uid);
+    assert.equal(session.testMode, true);
+    assert.deepEqual(session.readings, []);
+    assert.ok(session.grantExpiresAt.toMillis() > Date.now());
+  });
+
+  it('also opens older clients despite distance, accuracy and mock-provider gates', async () => {
+    const result = await invoke('verifyLocation', reading({ placeId: OPEN, lat: 0, lng: 0, accuracy: 9999, isMock: true }));
+    assert.equal(result.verified, true);
+    assert.equal(result.grant.testMode, true);
+    assert.deepEqual((await seedRead(`verificationSessions/${result.sessionId}`)).readings, []);
+  });
+
+  it('a caller cannot enable testing on a closed place', async () => {
+    assert.equal(await errorCode(invoke('verifyLocation', {
+      placeId: CLOSED, cameraTest: true, cameraTestEnabled: true,
+    })), 'camera_test_disabled');
+    const normal = await invoke('verifyLocation', reading({ placeId: CLOSED, lat: 0, lng: 0 }));
+    assert.equal(normal.reason, 'out_of_radius');
+  });
+
+  it('archived places cannot create camera grants', async () => {
+    assert.equal(await errorCode(invoke('verifyLocation', { placeId: ARCHIVED, cameraTest: true })), 'functions/not-found');
+    assert.equal(await errorCode(invoke('verifyLocation', reading({ placeId: ARCHIVED }))), 'functions/not-found');
+  });
+
+  it('restoring restrictions also invalidates an unused test grant', async () => {
+    const placeId = 'camera-test-restored';
+    await seedPlace(placeId, { cameraTestEnabled: true });
+    const result = await invoke('verifyLocation', { placeId, cameraTest: true });
+    await seedPlace(placeId, { cameraTestEnabled: false });
+    assert.equal(await errorCode(invoke('verifyLocation', { placeId, cameraTest: true })), 'camera_test_disabled');
+    assert.equal(await errorCode(invoke('issueTicket', {
+      grantToken: result.grant.token, photoPath: `tickets/${uid}/photo.jpg`, visibility: 'private',
+    })), 'camera_test_disabled');
+  });
+
+  it('archiving also blocks ticket issuance from an existing grant', async () => {
+    const placeId = 'camera-test-removed';
+    await seedPlace(placeId, { cameraTestEnabled: true });
+    const result = await invoke('verifyLocation', { placeId, cameraTest: true });
+    await seedPlace(placeId, { archived: true });
+    assert.equal(await errorCode(invoke('issueTicket', {
+      grantToken: result.grant.token, photoPath: `tickets/${uid}/photo.jpg`, visibility: 'private',
+    })), 'functions/not-found');
+  });
+
+  it('marks the issued ticket as a test and retains one-use and cooldown protection', async () => {
+    const result = await invoke('verifyLocation', { placeId: OPEN, cameraTest: true });
+    const input = { grantToken: result.grant.token, photoPath: `tickets/${uid}/photo.jpg`, visibility: 'private' };
+    const issued = await invoke('issueTicket', input);
+    assert.equal((await seedRead(`tickets/${issued.ticketId}`)).testMode, true);
+    assert.deepEqual(await invoke('issueTicket', input), issued);
+    const next = await invoke('verifyLocation', { placeId: OPEN, cameraTest: true });
+    assert.equal(await errorCode(invoke('issueTicket', { ...input, grantToken: next.grant.token })), 'cooldown_active');
   });
 });

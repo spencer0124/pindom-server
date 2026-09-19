@@ -79,3 +79,46 @@ GET 범위 요청의 JPEG 헤더로 확인했다. 기존 장소 8개와 사용�
 2026-09-20 제공자 표기를 `YHJ`, `JSY`, `LJW`, `KMJ` 영문 이니셜로 변경했다.
 운영 장소 23개의 `contributorInitials`, 한·영 `description`, `importContentHash`만
 트랜잭션으로 갱신하고 전부 재조회했다. 사진·좌표·카운터는 유지했다.
+
+## 카메라 테스트와 기존 테스트 장소 정리
+
+2026-09-20부터 관데공 23곳은 `cameraTestEnabled: true`로 위치 제한을 해제한다.
+사용자 요청에 따라 종료 시간과 자동 복구는 두지 않는다. 인증 반경 50m 설정은
+보존하며, 아래 해제 명령으로 테스트 모드를 끄면 다시 적용된다.
+
+기존 테스트 장소 8곳(`place-jumunjin`, `place-gamcheon`, `place-namsan`,
+`place-cheonggye`, `place-eurwangni`, `place-hyehwa`, `place-hyehwa-skk`,
+`place-test-anywhere`)과 코스 2개(`course-gangneung`, `course-seoul-night`)는
+`archived: true`로 보관한다. 새 앱의 지도·검색·추천에서 제외하고 새 촬영을
+차단한다. 기존 티켓·게시물·리뷰·사진과 카운터는 삭제하지 않는다.
+
+```sh
+# 먼저 변경 예정 항목 확인. --apply를 붙여야 실제 변경한다.
+node functions/scripts/configure-camera-testing.mjs \
+  --project pindom-1234 --archive-test-places --enable-camera
+
+node functions/scripts/configure-camera-testing.mjs \
+  --project pindom-1234 --archive-test-places --enable-camera --apply
+
+# 나중에 위치 제한을 복구할 때 실행. 보관한 장소는 그대로 둔다.
+node functions/scripts/configure-camera-testing.mjs \
+  --project pindom-1234 --disable-camera --apply
+```
+
+앱은 `verifyLocation({placeId, cameraTest: true})`를 GPS 좌표 없이 호출하고,
+서버는 장소 설정을 확인해 `grant.testMode: true`인 권한을 발급한다. 기존 앱의
+GPS 요청도 해당 설정이 켜진 장소에서는 거리·정확도 제한 없이 처리한다.
+로그인, 호출 한도, 권한 소유자·10분 유효 기간·일회성 사용, 발행 주기는 유지한다.
+권한 10분 만료는 촬영 권한의 수명이며, 장소 테스트 설정의 자동 복구가 아니다.
+테스트 티켓은 `testMode: true`를 저장하고 새 앱의 사진·티켓에 `TEST`를 표시한다.
+설정을 끄거나 장소를 보관하면 이미 받은 테스트 권한으로도 티켓을 발행할 수 없다.
+
+Functions의 `verifyLocation`, `issueTicket`, `getPublicProfile`, `getRoute`, `askAssistant`를 배포한 뒤
+운영 설정을 적용한다. 서버의 거리 제한 해제는 앱 재빌드 없이 반영된다. GPS 권한
+없이 카메라에 들어가기, 보관 장소 숨기기, TEST 표시는 새 앱 코드가 필요하다.
+개발 앱은 Metro 새로고침으로 확인할 수 있고 배포 앱은 업데이트 빌드·설치가 필요하다.
+
+운영 적용 후 활성 장소 23곳 모두 테스트 설정이 켜져 있고, 기존 장소 8곳과 코스
+2개가 보관된 것을 재조회했다. 적용 전후 장소의 사진·좌표·카운터 등 나머지 필드가
+모두 같으며, 기존 장소에 연결된 티켓 64장도 유지된다. Functions 통합 검사
+165개가 통과했다. 자동 복구 작업은 등록하지 않았다.
