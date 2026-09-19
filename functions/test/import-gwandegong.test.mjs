@@ -19,7 +19,7 @@ function fixture(t) {
     assets[kind] = { fileName, sha256: createHash('sha256').update(data).digest('hex'), bytes: data.length, width: 100, height: 200, contentType };
   }
   const places = [];
-  for (const [group, label, count] of [['yhj', 'ㅇㅎㅈ', 4], ['jsy', 'ㅈㅅㅇ', 3], ['ljw', 'ㅇㅈㅇ', 3], ['kmj', 'ㄱㅁㅈ', 13]]) {
+  for (const [group, label, count] of [['yhj', 'YHJ', 4], ['jsy', 'JSY', 3], ['ljw', 'LJW', 3], ['kmj', 'KMJ', 13]]) {
     for (let i = 1; i <= count; i++) places.push({
       id: `place-gdg-${group}-${String(i).padStart(2, '0')}`, contributorInitials: label,
       name: { ko: '장소', en: 'Place' }, description: { ko: '사진', en: 'Photo' },
@@ -40,7 +40,7 @@ test('rejects duplicates, contributor swaps and implausible coordinates', (t) =>
   const { dir, manifest } = fixture(t);
   for (const edit of [
     (m) => { m.places[1].id = m.places[0].id; },
-    (m) => { m.places[0].contributorInitials = 'ㄱㅁㅈ'; },
+    (m) => { m.places[0].contributorInitials = 'KMJ'; },
     (m) => { m.places[0].lat = 0; },
     (m) => { m.places[0].radiusMeters = 2000; },
   ]) {

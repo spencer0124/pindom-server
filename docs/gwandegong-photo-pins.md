@@ -1,7 +1,7 @@
 # 관데공 사진 핀
 
-관데공 사진 23개를 별도 장소 문서로 추가한다. 공개 이름은 `ㅇㅎㅈ` 4개,
-`ㅈㅅㅇ` 3개, `ㅇㅈㅇ` 3개, `ㄱㅁㅈ` 13개로 표시한다. 같은 건물에 기존 장소가
+관데공 사진 23개를 별도 장소 문서로 추가한다. 공개 이름은 `YHJ` 4개,
+`JSY` 3개, `LJW` 3개, `KMJ` 13개로 표시한다. 같은 건물에 기존 장소가
 있어도 사진별 고정 ID를 쓰며 기존 장소·카운터를 덮지 않는다.
 
 ## 사진과 좌표
@@ -30,7 +30,7 @@
 | --- | --- |
 | `cutoutImageUrl` | 투명 PNG 누끼 URL |
 | `cutoutAspectRatio` | 누끼 너비 / 높이 |
-| `contributorInitials` | 제공자 한글 초성 |
+| `contributorInitials` | 제공자 영문 이니셜 |
 | `coverImageCredit` | 외부 대표사진 출처 표시 |
 | `coverImageSourceUrl` | 외부 사진 원출처 |
 | `sourceMetadata` | 대표 좌표 출처, 원본/외부/누락 배경 구분, 합성 여부 |
@@ -75,3 +75,7 @@ Admin SDK와 ADC를 사용한다. 이미 같은 import와 내용 해시로 등�
 Storage 44개 객체의 SHA-256 메타데이터·크기·형식이 manifest와 일치하며, 누끼와
 배경 URL 45개가 이미지 응답을 반환했다. TourAPI 사진 서버는 HEAD를 지원하지 않아
 GET 범위 요청의 JPEG 헤더로 확인했다. 기존 장소 8개와 사용자 문서는 변경하지 않았다.
+
+2026-09-20 제공자 표기를 `YHJ`, `JSY`, `LJW`, `KMJ` 영문 이니셜로 변경했다.
+운영 장소 23개의 `contributorInitials`, 한·영 `description`, `importContentHash`만
+트랜잭션으로 갱신하고 전부 재조회했다. 사진·좌표·카운터는 유지했다.

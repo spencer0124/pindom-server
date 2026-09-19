@@ -18,7 +18,7 @@ export function validateManifest(manifest, assetsDir) {
   for (const place of manifest.places) {
     if (!/^place-gdg-(yhj|jsy|ljw|kmj)-\d{2}$/.test(place.id) || ids.has(place.id)) throw Error('Invalid or duplicate place id');
     ids.add(place.id);
-    const expectedInitials = { yhj: 'ㅇㅎㅈ', jsy: 'ㅈㅅㅇ', ljw: 'ㅇㅈㅇ', kmj: 'ㄱㅁㅈ' }[place.id.split('-')[2]];
+    const expectedInitials = { yhj: 'YHJ', jsy: 'JSY', ljw: 'LJW', kmj: 'KMJ' }[place.id.split('-')[2]];
     if (place.contributorInitials !== expectedInitials) throw Error('Contributor initials do not match the source group');
     for (const field of ['name', 'description', 'region', 'workTitle']) {
       if (!place[field]?.ko || !place[field]?.en) throw Error(`${place.id}: ${field} needs both locales`);

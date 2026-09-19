@@ -32,9 +32,9 @@ def prepare(inventory_path, output_dir):
     output.mkdir(parents=True, exist_ok=True)
     records = []
     for item in inventory:
-        group, label, _ = expected[groups.index(item["person"])]
+        group = expected[groups.index(item["person"])][0]
         place_id = f"place-gdg-{group}-{item['number']:02}"
-        record = {"id": place_id, "contributorInitials": label,
+        record = {"id": place_id, "contributorInitials": group.upper(),
                   "sourceNumber": item["number"], "assets": {}}
         for source_kind, details in item["files"].items():
             kind = "cover" if source_kind == "background" else "cutout"
