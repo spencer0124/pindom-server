@@ -1,0 +1,1536 @@
+{
+  "importId": "gwandegong-20260919",
+  "artist": {
+    "id": "artist-gwandegong",
+    "name": {
+      "ko": "관데공",
+      "en": "Gwandegong"
+    },
+    "initial": "ㄱㄷㄱ",
+    "accentColor": "#B83265"
+  },
+  "places": [
+    {
+      "id": "place-gdg-yhj-01",
+      "name": {
+        "ko": "남해독일마을",
+        "en": "Namhae German Village"
+      },
+      "roman": "Namhae German Village",
+      "description": {
+        "ko": "관데공 ㅇㅎㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅇㅎㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "경남 남해군 삼동면 독일로 89-7",
+      "region": {
+        "ko": "경남 남해군",
+        "en": "Namhae, Gyeongnam"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 34.800072598618605,
+      "lng": 128.03854804056576,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.33015873015873015,
+      "contributorInitials": "ㅇㅎㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 1,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "11086040",
+          "sourceUrl": "https://place.map.kakao.com/11086040",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-yhj-01-cutout.png",
+          "sha256": "116637fe3623f8c3a151383c195614ebdba2768406a86b133c9f6b781ce26db0",
+          "bytes": 486232,
+          "width": 312,
+          "height": 945,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-yhj-01-cover.jpg",
+          "sha256": "4a67b170bc3447a518409aed39f4ba8777a707de406bb6863951b0c0fa622e07",
+          "bytes": 290843,
+          "width": 1080,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-yhj-02",
+      "name": {
+        "ko": "안면도",
+        "en": "Anmyeondo"
+      },
+      "roman": "Anmyeondo",
+      "description": {
+        "ko": "관데공 ㅇㅎㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅇㅎㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "충남 태안군 안면읍 승언리",
+      "region": {
+        "ko": "충남 태안군",
+        "en": "Taean, Chungnam"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 36.5016873730712,
+      "lng": 126.367114705763,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.602880658436214,
+      "contributorInitials": "ㅇㅎㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 2,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "18376824",
+          "sourceUrl": "https://place.map.kakao.com/18376824",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "배경은 실내 출입문 주변으로 세부 시설을 식별할 수 없어 안면도 섬 대표 POI 사용. 실제 촬영 지점과 다를 수 있음."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-yhj-02-cutout.png",
+          "sha256": "e47eecb6089c3f19bca59f9bdf86fa34605a4cf73a8b43c502416321abfcd57a",
+          "bytes": 823287,
+          "width": 586,
+          "height": 972,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-yhj-02-cover.jpg",
+          "sha256": "4f2ca8abb0a72b0ebf31168590711b7b02b91bb19bc8122abc83b5e34461fb81",
+          "bytes": 173337,
+          "width": 1080,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-yhj-03",
+      "name": {
+        "ko": "몰리또 대학로점",
+        "en": "Molito Daehangno"
+      },
+      "roman": "Molito Daehangno",
+      "description": {
+        "ko": "관데공 ㅇㅎㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요. 원본 배경사진은 아직 없으며 인물 누끼만 제공됩니다.",
+        "en": "A Gwandegong photo spot with ㅇㅎㅈ. The pin marks a representative location and may differ from the original shooting point. Only the cutout is available; no original background photo was supplied."
+      },
+      "address": "서울 종로구 대학로9길 29",
+      "region": {
+        "ko": "서울 종로구",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.5817466057294,
+      "lng": 127.000253597472,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.6005555555555555,
+      "contributorInitials": "ㅇㅎㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 3,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "381217701",
+          "sourceUrl": "https://place.map.kakao.com/381217701",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "missing",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-yhj-03-cutout.png",
+          "sha256": "1e594929d73a09564016abebe900147aec4bc0c4d53aa456442dd6f25ac5b139",
+          "bytes": 1998516,
+          "width": 1081,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-yhj-04",
+      "name": {
+        "ko": "명수당",
+        "en": "Myeongsudang Pond"
+      },
+      "roman": "Myeongsudang Pond",
+      "description": {
+        "ko": "관데공 ㅇㅎㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요. 합성 자료를 참고한 장소입니다.",
+        "en": "A Gwandegong photo spot with ㅇㅎㅈ. The pin marks a representative location and may differ from the original shooting point. This spot is based on a composited reference."
+      },
+      "address": "경기 용인시 처인구 모현읍 왕산리 138",
+      "region": {
+        "ko": "경기 용인시",
+        "en": "Yongin, Gyeonggi"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.3388190707775,
+      "lng": 127.270129579647,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.7637630662020906,
+      "contributorInitials": "ㅇㅎㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 4,
+        "isCompositeReference": true,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "19745954",
+          "sourceUrl": "https://place.map.kakao.com/19745954",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "합성 자료를 포함하며, 장소의 API 대표 POI 좌표를 사용합니다. 실제 촬영 지점은 확정하지 않았습니다."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-yhj-04-cover.jpg",
+          "sha256": "cc342302ab297d76e227ddaf11e619e33123fcba4d7366216f084d6628a0e939",
+          "bytes": 865842,
+          "width": 1200,
+          "height": 1600,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-yhj-04-cutout.png",
+          "sha256": "f5880031bd79a6dfa2b7c1edf5fd3fcc4fc3c8864344c55f5671afef7b5ec33b",
+          "bytes": 1513182,
+          "width": 1096,
+          "height": 1435,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-jsy-01",
+      "name": {
+        "ko": "아르떼뮤지엄 부산",
+        "en": "ARTE MUSEUM BUSAN"
+      },
+      "roman": "ARTE MUSEUM BUSAN",
+      "description": {
+        "ko": "관데공 ㅈㅅㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요. 배경은 촬영 당시 사진이 아닌 장소 외관 대표사진입니다. 사진: 한국관광공사(TourAPI) · 공공누리 제1유형.",
+        "en": "A Gwandegong photo spot with ㅈㅅㅇ. The pin marks a representative location and may differ from the original shooting point. The cover is a representative exterior photo, not the original shooting background. Photo: Korea Tourism Organization (TourAPI), Korea Open Government License Type 1."
+      },
+      "address": "부산 영도구 해양로247번길 29",
+      "region": {
+        "ko": "부산 영도구",
+        "en": "Yeongdo, Busan"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 35.086479711108055,
+      "lng": 129.07591442192535,
+      "radiusMeters": 50,
+      "coverImageUrl": "https://tong.visitkorea.or.kr/cms/resource/02/3430702_image2_1.JPG",
+      "cutoutAspectRatio": 1.0596685082872928,
+      "contributorInitials": "ㅈㅅㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 1,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "1596443792",
+          "sourceUrl": "https://place.map.kakao.com/1596443792",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "api_representative_photo",
+        "cutoutSource": "provided",
+        "backgroundPhoto": {
+          "url": "https://tong.visitkorea.or.kr/cms/resource/02/3430702_image2_1.JPG",
+          "provider": "한국관광공사 TourAPI",
+          "sourceUrl": "https://data.visitkorea.or.kr/linkedview/3410658",
+          "contentId": "3410658",
+          "imageName": "아르떼뮤지엄 부산_외부",
+          "serialNumber": "3430702_9",
+          "licenseCode": "Type1",
+          "attribution": "사진: 한국관광공사(TourAPI) · 공공누리 제1유형",
+          "originalMetadata": {
+            "contentid": "3410658",
+            "originimgurl": "https://tong.visitkorea.or.kr/cms/resource/02/3430702_image2_1.JPG",
+            "imgname": "아르떼뮤지엄 부산_외부",
+            "smallimageurl": "https://tong.visitkorea.or.kr/cms/resource/02/3430702_image2_1.JPG",
+            "cpyrhtDivCd": "Type1",
+            "serialnum": "3430702_9"
+          },
+          "isOriginalShootingBackground": false,
+          "note": "사용자 제공 원본 배경이 없어서 같은 장소의 API 외관 대표사진을 사용. 인물 촬영 당시의 배경이라고 표시하지 않아야 함."
+        }
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-jsy-01-cutout.png",
+          "sha256": "c1df6ea238eec06d5608eadf08e884805e15ef6f4b9501eab0da40282b847175",
+          "bytes": 1047039,
+          "width": 959,
+          "height": 905,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      },
+      "coverImageCredit": "대표 사진: 한국관광공사(TourAPI) · 공공누리 제1유형",
+      "coverImageSourceUrl": "https://data.visitkorea.or.kr/linkedview/3410658"
+    },
+    {
+      "id": "place-gdg-jsy-02",
+      "name": {
+        "ko": "해운대해수욕장",
+        "en": "Haeundae Beach"
+      },
+      "roman": "Haeundae Beach",
+      "description": {
+        "ko": "관데공 ㅈㅅㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅈㅅㅇ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "부산 해운대구 우동",
+      "region": {
+        "ko": "부산 해운대구",
+        "en": "Haeundae, Busan"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 35.1585232170784,
+      "lng": 129.159854668484,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 1.5454545454545454,
+      "contributorInitials": "ㅈㅅㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 2,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "7913306",
+          "sourceUrl": "https://place.map.kakao.com/7913306",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "목록의 해운대는 넓은 지역으로 해운대해수욕장 대표 POI 사용. 실제 촬영 지점 미확정."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-jsy-02-cover.jpg",
+          "sha256": "a89f084ed10471b0c56004e2a47a67686a836bcc0c4e73b7838d020c63f3fca1",
+          "bytes": 601076,
+          "width": 1600,
+          "height": 1131,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-jsy-02-cutout.png",
+          "sha256": "a62815fa40b1001ba1381a07ee1be15c6dd0677b51b35ad59055e1a38dabf558",
+          "bytes": 887207,
+          "width": 918,
+          "height": 594,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-jsy-03",
+      "name": {
+        "ko": "성균관대학교 금잔디광장",
+        "en": "SKKU Geumjandi Square"
+      },
+      "roman": "SKKU Geumjandi Square",
+      "description": {
+        "ko": "관데공 ㅈㅅㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅈㅅㅇ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "서울 종로구 성균관로 25-2",
+      "region": {
+        "ko": "서울 종로구",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.5880155131684,
+      "lng": 126.993075302644,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.33875338753387535,
+      "contributorInitials": "ㅈㅅㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 3,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "17580012",
+          "sourceUrl": "https://place.map.kakao.com/17580012",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-jsy-03-cutout.png",
+          "sha256": "b9fe517cc7d7601fc8c747f9e0e9a56788eb4db992fb29eeb540d35a1ce065d2",
+          "bytes": 1309129,
+          "width": 500,
+          "height": 1476,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-jsy-03-cover.jpg",
+          "sha256": "e6de514cc73b59278aa53d36762ca99368a8ff8135491965c3cedda45a0f6497",
+          "bytes": 467635,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-ljw-01",
+      "name": {
+        "ko": "동명항",
+        "en": "Dongmyeong Port"
+      },
+      "roman": "Dongmyeong Port",
+      "description": {
+        "ko": "관데공 ㅇㅈㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅇㅈㅇ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "강원특별자치도 속초시 동명동 1-249",
+      "region": {
+        "ko": "강원특별자치도 속초시",
+        "en": "Sokcho, Gangwon"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 38.2111194141576,
+      "lng": 128.600794386102,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 1.012280701754386,
+      "contributorInitials": "ㅇㅈㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 1,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "7843350",
+          "sourceUrl": "https://place.map.kakao.com/7843350",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "배경은 속초 해안 방파제와 등대 풍경. 세부 항구는 확정할 수 없어 동명항을 대표 POI로 선택. 사진의 정확한 촬영항구라고 주장하지 않음."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-ljw-01-cutout.png",
+          "sha256": "0ce542a236027e9aaa19f14a78932d4173e800c66186eb5a014cd475c9a340f9",
+          "bytes": 1614442,
+          "width": 1154,
+          "height": 1140,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-ljw-01-cover.jpg",
+          "sha256": "4364a7b759b97d530b7e1e151e4a1f1a0ceee5f1bfb3635051d310dccca95939",
+          "bytes": 377298,
+          "width": 1600,
+          "height": 1131,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-ljw-02",
+      "name": {
+        "ko": "국립세종도서관",
+        "en": "National Library of Korea, Sejong"
+      },
+      "roman": "National Library of Korea, Sejong",
+      "description": {
+        "ko": "관데공 ㅇㅈㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요. 합성 자료를 참고한 장소입니다.",
+        "en": "A Gwandegong photo spot with ㅇㅈㅇ. The pin marks a representative location and may differ from the original shooting point. This spot is based on a composited reference."
+      },
+      "address": "세종특별자치시 다솜3로 48",
+      "region": {
+        "ko": "세종특별자치시 다솜3로",
+        "en": "Sejong"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 36.498643720527014,
+      "lng": 127.26811764846035,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.5461111111111111,
+      "contributorInitials": "ㅇㅈㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 2,
+        "isCompositeReference": true,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "22659718",
+          "sourceUrl": "https://place.map.kakao.com/22659718",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "합성 자료를 포함하며, 장소의 API 대표 POI 좌표를 사용합니다. 실제 촬영 지점은 확정하지 않았습니다."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-ljw-02-cover.jpg",
+          "sha256": "8496be8ca78bce4d39ecf94101b6189bd745c88725cac2781a9552047b71e131",
+          "bytes": 158063,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-ljw-02-cutout.png",
+          "sha256": "54bd6b6bc4d60c8b18e3aab5613b51c67d24b2e36bd5d46191354c0293ff3764",
+          "bytes": 1244251,
+          "width": 983,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-ljw-03",
+      "name": {
+        "ko": "마로니에공원",
+        "en": "Marronnier Park"
+      },
+      "roman": "Marronnier Park",
+      "description": {
+        "ko": "관데공 ㅇㅈㅇ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㅇㅈㅇ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "서울 종로구 대학로 104",
+      "region": {
+        "ko": "서울 종로구",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.5802887643268,
+      "lng": 127.002825745303,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.5648414985590778,
+      "contributorInitials": "ㅇㅈㅇ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 3,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "10353868",
+          "sourceUrl": "https://place.map.kakao.com/10353868",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-ljw-03-cutout.png",
+          "sha256": "0d09e53be981fc923568da5692a2c22cbb99a167acf02500d903f039591395e4",
+          "bytes": 1191194,
+          "width": 980,
+          "height": 1735,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-ljw-03-cover.jpg",
+          "sha256": "3e7e3dbbbd7adf444da90e360773d0924a7057fa86e5ce39ab1205742c7aaf7a",
+          "bytes": 410657,
+          "width": 1058,
+          "height": 1487,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-01",
+      "name": {
+        "ko": "명륜당",
+        "en": "Myeongnyundang"
+      },
+      "roman": "Myeongnyundang",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "서울 종로구 성균관로 25-1",
+      "region": {
+        "ko": "서울 종로구",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.5861848244185,
+      "lng": 126.995806335701,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.39666666666666667,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 1,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "7870738",
+          "sourceUrl": "https://place.map.kakao.com/7870738",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-01-cover.jpg",
+          "sha256": "1b65958f776d093314e27d6932abe1ee14b2710c74409c81b036bfcd8c178956",
+          "bytes": 212617,
+          "width": 1225,
+          "height": 1600,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-01-cutout.png",
+          "sha256": "641c8973ee7935cd1246ce3c4d1ad804bd76a26888cd0b2bd3936c85ebf96d8e",
+          "bytes": 1469671,
+          "width": 714,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-02",
+      "name": {
+        "ko": "팔공산케이블카",
+        "en": "Palgongsan Cable Car"
+      },
+      "roman": "Palgongsan Cable Car",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "대구 동구 팔공산로185길 51",
+      "region": {
+        "ko": "대구 동구",
+        "en": "Dong-gu, Daegu"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 35.9908860869511,
+      "lng": 128.6948337640703,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 1.1428571428571428,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 2,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "315072668",
+          "sourceUrl": "https://place.map.kakao.com/315072668",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "팔공산 산자락의 정원/가로등 배경만으로 시설 특정이 어려워 대구 쪽 접근시설인 팔공산케이블카 대표 POI 사용. 실제 촬영 장소는 미확정."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-02-cutout.png",
+          "sha256": "1bee2d383fe336c31d6db607f5e21062c71f4049999028cd30fa996c502afe6f",
+          "bytes": 1418808,
+          "width": 1800,
+          "height": 1575,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-02-cover.jpg",
+          "sha256": "552190b8024953f462a60c0b09ec9ca541f5d1d4f1e9a9d0c5481f0d5602e1ad",
+          "bytes": 509166,
+          "width": 1600,
+          "height": 900,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-03",
+      "name": {
+        "ko": "오동도",
+        "en": "Odongdo"
+      },
+      "roman": "Odongdo",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "전남광주통합특별시 여수시 수정동 1-2",
+      "region": {
+        "ko": "전남광주통합특별시 여수시",
+        "en": "Yeosu"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 34.74459824794542,
+      "lng": 127.76628877710922,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.8772222222222222,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 3,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "8483282",
+          "sourceUrl": "https://place.map.kakao.com/8483282",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-03-cutout.png",
+          "sha256": "875a5361eccfa6a3844841000b1fd349d48022c206c3d4e8a9ef780be8b395f4",
+          "bytes": 2258450,
+          "width": 1579,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-03-cover.jpg",
+          "sha256": "b43d0cdbbcb8796a0aafc503bafd5f5baffffceba5ec3bd80ef5b5791f22105a",
+          "bytes": 305923,
+          "width": 1087,
+          "height": 1447,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-04",
+      "name": {
+        "ko": "하고수동해변",
+        "en": "Hagosudong Beach"
+      },
+      "roman": "Hagosudong Beach",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "제주특별자치도 제주시 우도면 연평리",
+      "region": {
+        "ko": "제주특별자치도 제주시",
+        "en": "Jeju"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 33.5141507975417,
+      "lng": 126.957648164245,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.5288888888888889,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 4,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "8132634",
+          "sourceUrl": "https://place.map.kakao.com/8132634",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "우도 해안 사진으로 세부 해변은 확정하지 못했으며 하고수동해변을 대표 POI로 선택. 실제 촬영 해변과 다를 수 있음."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-04-cutout.png",
+          "sha256": "95793ed8beada1b4d8554436b42680329fa664f07742a0ee7f69b8af85ada2b2",
+          "bytes": 1988577,
+          "width": 952,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-04-cover.jpg",
+          "sha256": "0c4419e73372d043a7d5b5c22fe419c000a6d852d57711e9fd38ece134e8530e",
+          "bytes": 416677,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-05",
+      "name": {
+        "ko": "뻘다방",
+        "en": "Ppeol Dabang"
+      },
+      "roman": "Ppeol Dabang",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "인천 옹진군 영흥면 선재로 55",
+      "region": {
+        "ko": "인천 옹진군",
+        "en": "Ongjin, Incheon"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.2341514661953,
+      "lng": 126.53125963775,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.3827777777777778,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 5,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "1849914946",
+          "sourceUrl": "https://place.map.kakao.com/1849914946",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "제공 배경에 뻘다방의 Ppeol 표지판/해변 데크가 보여 선재도 전체보다 구체적인 뻘다방 POI를 선택."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-05-cover.jpg",
+          "sha256": "5359a30e5d42e9d48db7947fa2c39b2216f4bc0a83f9616d8fe1c648ec2fcf86",
+          "bytes": 316437,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-05-cutout.png",
+          "sha256": "7d44175f9288845edfc5faf5a981648d7052c14e82b0efa633d952abf41e62ea",
+          "bytes": 1047255,
+          "width": 689,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-06",
+      "name": {
+        "ko": "부천시청",
+        "en": "Bucheon City Hall"
+      },
+      "roman": "Bucheon City Hall",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "경기 부천시 원미구 길주로 210",
+      "region": {
+        "ko": "경기 부천시",
+        "en": "Bucheon, Gyeonggi"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.50350635538343,
+      "lng": 126.76602942027812,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.5288888888888889,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 6,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "9826017",
+          "sourceUrl": "https://place.map.kakao.com/9826017",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-06-cutout.png",
+          "sha256": "0d25ed3e78391769b121fc448f610a030a98bc70e31c5f47db14b24b5e7f0f80",
+          "bytes": 823356,
+          "width": 952,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-06-cover.jpg",
+          "sha256": "6d8b7295cb91633a5f38a7a1375d7a633112f56440b8e6a2449973d3b09f4864",
+          "bytes": 232774,
+          "width": 936,
+          "height": 1600,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-07",
+      "name": {
+        "ko": "신정호관광단지",
+        "en": "Sinjeongho Tourist Park"
+      },
+      "roman": "Sinjeongho Tourist Park",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "충남 아산시 신정로 616",
+      "region": {
+        "ko": "충남 아산시",
+        "en": "Asan, Chungnam"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 36.7727907007097,
+      "lng": 126.984416833246,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.625,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 7,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "12273668",
+          "sourceUrl": "https://place.map.kakao.com/12273668",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-07-cover.jpg",
+          "sha256": "40fd3a4ff46e031298abc2411cfc5653dcf0fee9765a6ff5b75d68b833ab9de4",
+          "bytes": 430065,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-07-cutout.png",
+          "sha256": "6e9d2b917c1a5f1751bade54bcdcc4082b7b24ed9a3cd2958c0a156ce0133319",
+          "bytes": 807446,
+          "width": 1125,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-08",
+      "name": {
+        "ko": "삼길포항",
+        "en": "Samgilpo Port"
+      },
+      "roman": "Samgilpo Port",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "충남 서산시 대산읍 화곡리 1891",
+      "region": {
+        "ko": "충남 서산시",
+        "en": "Seosan, Chungnam"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.0035417628837,
+      "lng": 126.452790265696,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.35555555555555557,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 8,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "26974768",
+          "sourceUrl": "https://place.map.kakao.com/26974768",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-08-cover.jpg",
+          "sha256": "cd45b8f10bd22b9016202779787deb9ccc6482ecc0333d7ae293d0f0d0a2eec9",
+          "bytes": 256567,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-08-cutout.png",
+          "sha256": "eecb023417492a1218b65a93b151f254e8ff303deae92cfd81652bf1f84fbffa",
+          "bytes": 621553,
+          "width": 640,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-09",
+      "name": {
+        "ko": "고인돌공원",
+        "en": "Goindol Park"
+      },
+      "roman": "Goindol Park",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "경기 오산시 금암동 174-1",
+      "region": {
+        "ko": "경기 오산시",
+        "en": "Osan, Gyeonggi"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.1731310529255,
+      "lng": 127.048184059595,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.5538888888888889,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 9,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "18431233",
+          "sourceUrl": "https://place.map.kakao.com/18431233",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-09-cutout.png",
+          "sha256": "76253b67d7ad0ccddb1fbd42faa87a1b29d872525cec7abd11227c883a504508",
+          "bytes": 1898383,
+          "width": 997,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-09-cover.jpg",
+          "sha256": "860bdd44f2f03329f85fbe6ce1191768ff43ea86e6a35aaa84e76b705676ee53",
+          "bytes": 562348,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-10",
+      "name": {
+        "ko": "목포근대역사관 1관",
+        "en": "Mokpo Modern History Museum 1"
+      },
+      "roman": "Mokpo Modern History Museum 1",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "전남광주통합특별시 목포시 영산로29번길 6",
+      "region": {
+        "ko": "전남광주통합특별시 목포시",
+        "en": "Mokpo"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 34.787532306488664,
+      "lng": 126.38208646508214,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.39222222222222225,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 10,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "11739604",
+          "sourceUrl": "https://place.map.kakao.com/11739604",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "배경의 붉은 벽돌 부속건물과 유달산 방향을 참고해 목포근대역사관1관 POI 선택. 정원 안 촬영 지점은 미확정."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-10-cover.jpg",
+          "sha256": "025b65d5a3b7e586725d75067642ed16ad280e85e8b7e7b2f280fe4d8884053d",
+          "bytes": 659223,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-10-cutout.png",
+          "sha256": "acab78973dc1eeee549773e1186e0c27300fbf60c416f9e2c635567331b367a3",
+          "bytes": 858090,
+          "width": 706,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-11",
+      "name": {
+        "ko": "국립아시아문화전당",
+        "en": "Asia Culture Center"
+      },
+      "roman": "Asia Culture Center",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "전남광주통합특별시 동구 문화전당로 38",
+      "region": {
+        "ko": "전남광주통합특별시 동구",
+        "en": "Gwangju"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 35.147333715652636,
+      "lng": 126.92135353457694,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.6661111111111111,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 11,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "27233966",
+          "sourceUrl": "https://place.map.kakao.com/27233966",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-11-cutout.png",
+          "sha256": "1a2d86c903b5ee241eacda497fb9e5fa919fae0f07312097cdda6f5eb1d1d889",
+          "bytes": 2461105,
+          "width": 1199,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-11-cover.jpg",
+          "sha256": "eeda8fa187ab728b1d5a1c566818533e404244fa31b14105afc05b6485323c97",
+          "bytes": 409235,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-12",
+      "name": {
+        "ko": "성균관대학교 자연과학캠퍼스",
+        "en": "SKKU Natural Sciences Campus"
+      },
+      "roman": "SKKU Natural Sciences Campus",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "경기 수원시 장안구 서부로 2066",
+      "region": {
+        "ko": "경기 수원시",
+        "en": "Suwon, Gyeonggi"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.29503950633725,
+      "lng": 126.97742215615531,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.3572222222222222,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 12,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "10490738",
+          "sourceUrl": "https://place.map.kakao.com/10490738",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "전체 자연과학캠퍼스 대표 POI로 등록. 세부 건물/광장 촬영 지점은 미확정."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cover": {
+          "fileName": "place-gdg-kmj-12-cover.jpg",
+          "sha256": "56d92d40057f4a02d8e5475d5e2a5a791e8469e1026de267e3e1c3cfec74f4ec",
+          "bytes": 478030,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        },
+        "cutout": {
+          "fileName": "place-gdg-kmj-12-cutout.png",
+          "sha256": "a2cd6ac471aeeb39ceb2238c7d4dc9cf1db3a529f2267c487001d44b7e3c171a",
+          "bytes": 1082799,
+          "width": 643,
+          "height": 1800,
+          "contentType": "image/png",
+          "source": "provided"
+        }
+      }
+    },
+    {
+      "id": "place-gdg-kmj-13",
+      "name": {
+        "ko": "성균관대학교 인문사회과학캠퍼스 600주년기념관",
+        "en": "SKKU 600th Anniversary Hall"
+      },
+      "roman": "SKKU 600th Anniversary Hall",
+      "description": {
+        "ko": "관데공 ㄱㅁㅈ의 사진과 함께 찍는 포토 스팟입니다. 핀은 장소의 대표 위치이며 실제 촬영 지점과 다를 수 있어요.",
+        "en": "A Gwandegong photo spot with ㄱㅁㅈ. The pin marks a representative location and may differ from the original shooting point."
+      },
+      "address": "서울 종로구 성균관로 25-2",
+      "region": {
+        "ko": "서울 종로구",
+        "en": "Jongno, Seoul"
+      },
+      "workTitle": {
+        "ko": "관데공",
+        "en": "Gwandegong"
+      },
+      "workKind": "self",
+      "artistIds": [
+        "artist-gwandegong"
+      ],
+      "lat": 37.587380383101475,
+      "lng": 126.99438986529432,
+      "radiusMeters": 50,
+      "coverImageUrl": "",
+      "cutoutAspectRatio": 0.75,
+      "contributorInitials": "ㄱㅁㅈ",
+      "sourceMetadata": {
+        "collection": "관데공",
+        "sourceNumber": 13,
+        "isCompositeReference": false,
+        "location": {
+          "provider": "Kakao Local API",
+          "placeId": "24633581",
+          "sourceUrl": "https://place.map.kakao.com/24633581",
+          "attribution": "장소 좌표: Kakao Local API · Kakao맵",
+          "approximate": true,
+          "selectionNote": "장소명과 지역이 일치하는 API 대표 POI 좌표. 실제 촬영 지점까지 특정한 좌표는 아님."
+        },
+        "backgroundStatus": "provided_original",
+        "cutoutSource": "provided"
+      },
+      "assets": {
+        "cutout": {
+          "fileName": "place-gdg-kmj-13-cutout.png",
+          "sha256": "59121028c859c09af6cc4366ac711fc4cb111e89b7943d91bb2028524b2f8a71",
+          "bytes": 971365,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/png",
+          "source": "provided"
+        },
+        "cover": {
+          "fileName": "place-gdg-kmj-13-cover.jpg",
+          "sha256": "291fd8996ea2c86de0a730577aaf447f9bf541d9e1aa3306bc5648c0ad8edcd0",
+          "bytes": 464234,
+          "width": 1086,
+          "height": 1448,
+          "contentType": "image/jpeg",
+          "source": "provided"
+        }
+      }
+    }
+  ]
+}
