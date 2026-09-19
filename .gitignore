@@ -36,3 +36,6 @@ CLAUDE.md
 # 지식 그래프 산출물·로컬 스크린샷 — 세션 로컬, 저장소 산출물 아님
 graphify-out/
 스크린샷 *.png
+
+# macOS Finder metadata
+.DS_Store
