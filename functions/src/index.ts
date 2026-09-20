@@ -1306,30 +1306,69 @@ export const getRoute = onCall({ secrets: [KAKAO_REST_API_KEY] }, async (req) =>
  * 영원히 나타나지 않았다. 갤러리 문서 id 를 티켓 id 와 같게 둬서(issueTicket 참고)
  * 쿼리 없이 존재 여부만으로 만들고 지운다.
  */
+/** Delete the owned photo only; earned tickets and raffle records remain intact. */
+export const deleteTicketPhoto = onCall(async (req) => {
+  const uid = requireVerifiedUid(req);
+  const ticketId = docId((req.data ?? {}) as Data, 'ticketId');
+  const ticketRef = db.doc(`tickets/${ticketId}`);
+  const snapshot = await ticketRef.get();
+  const ticket = snapshot.data();
+  if (!ticket) throw new HttpsError('not-found', '티켓이 없습니다');
+  if (ticket.userId !== uid) throw new HttpsError('permission-denied', '본인 사진만 삭제할 수 있습니다');
+  const photoPath = ticket.photoPath as string | undefined;
+  if (photoPath && !photoPath.startsWith(`tickets/${uid}/`)) {
+    throw new HttpsError('failed-precondition', '사진 경로를 확인할 수 없습니다');
+  }
+  // Delete the binary first. A failed storage request leaves a visible, retryable tile.
+  if (photoPath) await getStorage().bucket().file(photoPath).delete({ ignoreNotFound: true });
+  else if (ticket.photoUrl && String(ticket.photoUrl).includes('firebasestorage.googleapis.com')) {
+    const url = new URL(String(ticket.photoUrl));
+    const expected = `/v0/b/${getStorage().bucket().name}/o/`;
+    const path = url.pathname.startsWith(expected) ? decodeURIComponent(url.pathname.slice(expected.length)) : '';
+    if (url.hostname !== 'firebasestorage.googleapis.com' || !path.startsWith(`tickets/${uid}/`)) {
+      throw new HttpsError('failed-precondition', '사진 경로를 확인할 수 없습니다');
+    }
+    await getStorage().bucket().file(path).delete({ ignoreNotFound: true });
+  }
+  await db.runTransaction(async (tx) => {
+    const latest = (await tx.get(ticketRef)).data();
+    if (!latest || latest.userId !== uid) throw new HttpsError('permission-denied', '본인 사진만 삭제할 수 있습니다');
+    const placeRef = db.doc(`places/${latest.placeId}`);
+    const place = (await tx.get(placeRef)).data();
+    if (!latest.photoDeleted && place) tx.update(placeRef, { photoCount: Math.max(0, Number(place.photoCount ?? 0) - 1) });
+    tx.update(ticketRef, { photoUrl: '', photoDeleted: true });
+    tx.delete(db.doc(`places/${latest.placeId}/gallery/${ticketId}`));
+  });
+  return { deleted: true };
+});
+
 export const syncGalleryOnVisibility = onDocumentUpdated('tickets/{ticketId}', async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
-  if (!before || !after || before.visibility === after.visibility) return;
-
-  const galleryRef = db.doc(`places/${after.placeId}/gallery/${event.params.ticketId}`);
-  if (after.visibility === 'public') {
-    await galleryRef.set({
-      ticketId: event.params.ticketId,
-      authorId: after.userId,
-      photoUrl: after.photoUrl,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  } else {
-    await galleryRef.delete();
-
-    // 공개였던 동안 URL 을 저장해 둔 사람은 토큰을 안 갈면 비공개로 돌려도 계속 본다 —
-    // 다운로드 URL 자체가 Storage 규칙을 우회하는 권한이라서다. photoPath 가 없는
-    // 옛 티켓(이 필드를 넣기 전 발급분)은 건너뛴다 — 회전시킬 원본 경로를 모른다.
-    const photoPath = after.photoPath as string | undefined;
-    if (photoPath) {
-      const photoUrl = await rotateDownloadUrl(photoPath);
-      await event.data!.after.ref.update({ photoUrl });
+  if (!before || !after || (before.visibility === after.visibility && before.photoDeleted === after.photoDeleted)) return;
+  const ticketRef = event.data!.after.ref;
+  // Read current state: an older visibility event must never restore a deleted photo.
+  await db.runTransaction(async (tx) => {
+    const current = (await tx.get(ticketRef)).data();
+    if (!current) return;
+    const galleryRef = db.doc(`places/${current.placeId}/gallery/${event.params.ticketId}`);
+    if (current.visibility === 'public' && !current.photoDeleted) {
+      tx.set(galleryRef, { ticketId: event.params.ticketId, authorId: current.userId,
+        photoUrl: current.photoUrl, createdAt: FieldValue.serverTimestamp() });
+    } else tx.delete(galleryRef);
+  });
+  const current = (await ticketRef.get()).data();
+  if (current?.visibility === 'private' && !current.photoDeleted && current.photoPath) {
+    let photoUrl: string;
+    try { photoUrl = await rotateDownloadUrl(current.photoPath as string); }
+    catch (error) {
+      if ((await ticketRef.get()).data()?.photoDeleted) return;
+      throw error;
     }
+    await db.runTransaction(async (tx) => {
+      const latest = (await tx.get(ticketRef)).data();
+      if (latest && !latest.photoDeleted && latest.visibility === 'private') tx.update(ticketRef, { photoUrl });
+    });
   }
 });
 
@@ -1424,15 +1463,16 @@ export const deleteAccount = onCall(async (req) => {
   ownReports.docs.forEach((d) => writer.update(d.ref, { reporterId: 'deleted' }));
 
   // 장소 카운터도 되돌린다. 안 두면 갤러리에 없는 사진 수가 장소 화면에 영원히 남는다.
-  const perPlace = new Map<string, number>();
+  const perPlace = new Map<string, { tickets: number; photos: number }>();
   for (const d of tickets.docs) {
     const placeId = d.data().placeId as string;
-    perPlace.set(placeId, (perPlace.get(placeId) ?? 0) + 1);
+    const count = perPlace.get(placeId) ?? { tickets: 0, photos: 0 };
+    perPlace.set(placeId, { tickets: count.tickets + 1, photos: count.photos + (d.data().photoDeleted ? 0 : 1) });
   }
   for (const [placeId, n] of perPlace) {
     writer.update(db.doc(`places/${placeId}`), {
-      ticketCount: FieldValue.increment(-n),
-      photoCount: FieldValue.increment(-n),
+      ticketCount: FieldValue.increment(-n.tickets),
+      photoCount: FieldValue.increment(-n.photos),
     });
   }
   await writer.close();
@@ -1488,7 +1528,7 @@ export const getPublicProfile = onCall(async (req) => {
     ticketsIssued: Number(user.ticketsIssued ?? 0),
     placesVisited: Number(user.placesVisited ?? 0),
     tier: String(user.tier ?? 'club10'),
-    tickets: tickets.docs.map((d) => {
+    tickets: tickets.docs.filter((d) => !d.data().photoDeleted).map((d) => {
       const t = d.data() as Data;
       const artistId = typeof t.artistId === 'string' ? t.artistId : '';
       return {

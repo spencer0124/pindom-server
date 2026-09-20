@@ -723,3 +723,54 @@ describe('server-controlled camera testing and archived places', () => {
     assert.equal(await errorCode(invoke('issueTicket', { ...input, grantToken: next.grant.token })), 'cooldown_active');
   });
 });
+
+// Photo deletion must never debit/refund an earned ticket or erase entry history.
+describe('deleteTicketPhoto', () => {
+  const id = 'photo-delete-test';
+  let photoApp, uid, fns;
+  const invoke = async (name, data) => (await httpsCallable(fns, name)(data)).data;
+  let original;
+  let userBefore;
+  const path = () => `tickets/${uid}/delete-test.jpg`;
+  before(async () => {
+    photoApp = initializeApp({ apiKey: 'fake', projectId: PROJECT, storageBucket: `${PROJECT}.appspot.com` }, 'photo-deletion');
+    const auth = getAuth(photoApp);
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    connectStorageEmulator(getStorage(photoApp), '127.0.0.1', 9199);
+    fns = getFunctions(photoApp, 'asia-northeast3');
+    connectFunctionsEmulator(fns, '127.0.0.1', 5001);
+    uid = (await createUserWithEmailAndPassword(auth, 'photo-delete@example.com', 'pw1234')).user.uid;
+    await uploadBytes(ref(getStorage(photoApp), path()), new Uint8Array(8), { contentType: 'image/jpeg' });
+    original = { userId: uid, placeId: PLACE, placeName: '사진 삭제 검증', photoPath: path(),
+      photoUrl: 'https://example.test/photo.jpg', visibility: 'public', serial: 'KEEP-SERIAL',
+      spent: true, spentOnEntryId: 'keep-entry', issuedAt: Timestamp.now() };
+    await seedEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', uid), { ticketBalance: 7, ticketsIssued: 10 });
+      await setDoc(doc(ctx.firestore(), 'tickets', id), original);
+      await setDoc(doc(ctx.firestore(), `places/${PLACE}/gallery/${id}`), { ticketId: id, photoUrl: original.photoUrl });
+      await setDoc(doc(ctx.firestore(), 'raffleEntries', 'keep-entry'), { userId: uid, ticketIds: [id], ticketsSpent: 1 });
+      await setDoc(doc(ctx.firestore(), 'tickets', 'not-my-photo'), { ...original, userId: 'someone-else' });
+    });
+    userBefore = await seedRead(`users/${uid}`);
+  });
+  after(async () => { await deleteApp(photoApp); });
+  it('refuses another user’s photo', async () => {
+    assert.equal(await errorCode(invoke('deleteTicketPhoto', { ticketId: 'not-my-photo' })), 'functions/permission-denied');
+    assert.ok(await getMetadata(ref(getStorage(photoApp), path())));
+  });
+  it('removes media and gallery while preserving the ticket, balance and entry', async () => {
+    assert.deepEqual(await invoke('deleteTicketPhoto', { ticketId: id }), { deleted: true });
+    const after = await seedRead(`tickets/${id}`);
+    assert.equal(after.photoDeleted, true);
+    assert.equal(after.photoUrl, '');
+    for (const key of ['userId', 'serial', 'spent', 'spentOnEntryId', 'visibility']) assert.equal(after[key], original[key]);
+    assert.deepEqual(await seedRead(`users/${uid}`), userBefore);
+    assert.deepEqual((await seedRead('raffleEntries/keep-entry')).ticketIds, [id]);
+    assert.equal(await seedRead(`places/${PLACE}/gallery/${id}`), undefined);
+    await assert.rejects(getMetadata(ref(getStorage(photoApp), path())), (e) => e.code === 'storage/object-not-found');
+  });
+  it('is safe to retry after the binary is already gone', async () => {
+    assert.deepEqual(await invoke('deleteTicketPhoto', { ticketId: id }), { deleted: true });
+    assert.deepEqual(await seedRead(`users/${uid}`), userBefore);
+  });
+});
