@@ -9,6 +9,10 @@ const enable = args.includes('--enable-camera');
 const disable = args.includes('--disable-camera');
 const apply = args.includes('--apply');
 const onlyPlace = args.includes('--only-place') ? args[args.indexOf('--only-place') + 1] : null;
+const exceptPlace = args.includes('--except-place') ? args[args.indexOf('--except-place') + 1] : null;
+if (args.includes('--except-place') && (!enable || onlyPlace || !exceptPlace || exceptPlace.startsWith('--'))) {
+  throw Error('--except-place requires --enable-camera and a place ID, without --only-place');
+}
 if (args.includes('--only-place') && (!enable || !onlyPlace || onlyPlace.startsWith('--'))) {
   throw Error('--only-place requires --enable-camera and a place ID');
 }
@@ -33,6 +37,9 @@ const result = await db.runTransaction(async (tx) => {
   if (onlyPlace && !places.docs.some((doc) => doc.id === onlyPlace && doc.data().archived !== true)) {
     throw Error('The camera-test place must exist and be active');
   }
+  if (exceptPlace && !places.docs.some((doc) => doc.id === exceptPlace && doc.data().archived !== true)) {
+    throw Error('The excluded place must exist and be active');
+  }
   const active = [];
   const affectedArtists = new Set(places.docs
     .filter((doc) => legacyPlaces.has(doc.id))
@@ -52,8 +59,8 @@ const result = await db.runTransaction(async (tx) => {
       });
     } else if (data.archived !== true) {
       active.push(data);
-      update(doc, { cameraTestEnabled: enable && (!onlyPlace || doc.id === onlyPlace) });
-    } else if (onlyPlace) {
+      update(doc, { cameraTestEnabled: enable && (!onlyPlace || doc.id === onlyPlace) && doc.id !== exceptPlace });
+    } else if (onlyPlace || exceptPlace) {
       update(doc, { cameraTestEnabled: false });
     }
   }
@@ -65,6 +72,6 @@ const result = await db.runTransaction(async (tx) => {
       update(doc, { placeCount: active.filter((place) => place.artistIds?.includes(doc.id)).length });
     }
   }
-  return { dryRun: !apply, activePlaces: active.length, cameraTestEnabled: enable, onlyPlace, changes };
+  return { dryRun: !apply, activePlaces: active.length, cameraTestEnabled: enable, onlyPlace, exceptPlace, changes };
 });
 console.log(JSON.stringify(result, null, 2));
