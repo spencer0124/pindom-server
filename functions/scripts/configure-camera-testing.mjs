@@ -8,6 +8,10 @@ const archive = args.includes('--archive-test-places');
 const enable = args.includes('--enable-camera');
 const disable = args.includes('--disable-camera');
 const apply = args.includes('--apply');
+const onlyPlace = args.includes('--only-place') ? args[args.indexOf('--only-place') + 1] : null;
+if (args.includes('--only-place') && (!enable || !onlyPlace || onlyPlace.startsWith('--'))) {
+  throw Error('--only-place requires --enable-camera and a place ID');
+}
 if (project !== 'pindom-1234' || enable === disable) {
   throw Error('Pass --project pindom-1234 and exactly one of --enable-camera / --disable-camera');
 }
@@ -26,6 +30,9 @@ const result = await db.runTransaction(async (tx) => {
     throw Error('A reviewed fixture is missing; inspect the catalog before continuing');
   }
   const changes = [];
+  if (onlyPlace && !places.docs.some((doc) => doc.id === onlyPlace && doc.data().archived !== true)) {
+    throw Error('The camera-test place must exist and be active');
+  }
   const active = [];
   const affectedArtists = new Set(places.docs
     .filter((doc) => legacyPlaces.has(doc.id))
@@ -45,7 +52,9 @@ const result = await db.runTransaction(async (tx) => {
       });
     } else if (data.archived !== true) {
       active.push(data);
-      update(doc, { cameraTestEnabled: enable });
+      update(doc, { cameraTestEnabled: enable && (!onlyPlace || doc.id === onlyPlace) });
+    } else if (onlyPlace) {
+      update(doc, { cameraTestEnabled: false });
     }
   }
   if (archive) {
@@ -56,6 +65,6 @@ const result = await db.runTransaction(async (tx) => {
       update(doc, { placeCount: active.filter((place) => place.artistIds?.includes(doc.id)).length });
     }
   }
-  return { dryRun: !apply, activePlaces: active.length, cameraTestEnabled: enable, changes };
+  return { dryRun: !apply, activePlaces: active.length, cameraTestEnabled: enable, onlyPlace, changes };
 });
 console.log(JSON.stringify(result, null, 2));
